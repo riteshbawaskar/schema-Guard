@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 from app.connectors.base import ConnectionTestResult, DatabaseConnector
 from app.schema.canonical import (
@@ -24,9 +25,7 @@ except ImportError:  # pragma: no cover
 
 
 class SnowflakeConnector(DatabaseConnector):
-    """Uses Programmatic Access Token (PAT) authentication, passed as the
-    `password` parameter with authenticator left at its default - Snowflake
-    accepts a PAT as a password-style credential."""
+    """Connects with a PAT or Snowflake browser-based SSO."""
 
     database_type = "snowflake"
 
@@ -36,16 +35,31 @@ class SnowflakeConnector(DatabaseConnector):
                 "snowflake-connector-python is not installed. Install it to enable Snowflake connectivity."
             )
         cfg = self.configuration
-        self._conn = snowflake.connector.connect(
-            account=cfg["account"],
-            user=cfg["username"],
-            password=cfg.get("pat"),  # Programmatic Access Token
-            warehouse=cfg.get("warehouse"),
-            database=cfg.get("database"),
-            schema=cfg.get("schema"),
-            role=cfg.get("role"),
-            login_timeout=15,
-        )
+        connection_args = {
+            "account": cfg["account"],
+            "user": cfg["username"],
+            "warehouse": cfg.get("warehouse"),
+            "database": cfg.get("database"),
+            "schema": cfg.get("schema"),
+            "role": cfg.get("role"),
+            "login_timeout": 15,
+        }
+        authentication = cfg.get("authentication", "pat")
+        if authentication == "sso":
+            connection_args["authenticator"] = "externalbrowser"
+        else:
+            connection_args["password"] = cfg.get("pat")
+
+        url = cfg.get("url")
+        if url:
+            parsed = urlparse(url if "://" in url else f"https://{url}")
+            if not parsed.hostname:
+                raise ValueError("Snowflake URL must include a host")
+            connection_args["host"] = parsed.hostname
+            if parsed.port:
+                connection_args["port"] = parsed.port
+
+        self._conn = snowflake.connector.connect(**connection_args)
 
     def close(self) -> None:
         if self._conn is not None:

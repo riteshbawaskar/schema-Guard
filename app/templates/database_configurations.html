@@ -65,7 +65,7 @@
 {% block scripts %}
 <script>
 const FIELD_DEFS = {
-  snowflake: [["account","Account"],["username","Username"],["pat","Programmatic Access Token (PAT)","password"],["warehouse","Warehouse"],["database","Database"],["schema","Schema"],["role","Role (optional)"]],
+  snowflake: [["account","Account"],["url","URL / Host (optional)","text","e.g. https://account.region.snowflakecomputing.com or https://localhost:443"],["username","Username"],["authentication","Authentication","select"],["pat","Programmatic Access Token (PAT)","password"],["warehouse","Warehouse"],["database","Database"],["schema","Schema"],["role","Role (optional)"]],
   postgresql: [["host","Host"],["port","Port","number","5432"],["database","Database"],["schema","Schema (optional, default public)"],["username","Username"],["password","Password","password"],["ssl_mode","SSL Mode (optional, e.g. prefer)"]],
   oracle: [["host","Host"],["port","Port","number","1521"],["service_name","Service Name"],["schema","Schema (optional)"],["username","Username"],["password","Password","password"]],
   sqlite: [["database_file","Database File Path"]],
@@ -77,12 +77,31 @@ function renderTypeFields(existingConfig) {
   const fields = FIELD_DEFS[type] || [];
   container.innerHTML = fields.map(([key, label, inputType, placeholder]) => {
     const val = existingConfig ? (existingConfig[key] ?? "") : "";
+    if (key === "authentication") {
+      const auth = val || "pat";
+      return `<div class="mb-3">
+        <label class="form-label">${label}</label>
+        <select class="form-select" id="fld_${key}" onchange="toggleSnowflakeAuthField()">
+          <option value="pat" ${auth === "pat" ? "selected" : ""}>PAT</option>
+          <option value="sso" ${auth === "sso" ? "selected" : ""}>SSO (browser login)</option>
+        </select>
+      </div>`;
+    }
     return `<div class="mb-3">
       <label class="form-label">${label}</label>
       <input class="form-control" id="fld_${key}" type="${inputType || 'text'}" placeholder="${placeholder || ''}" value="${val === '********' ? '' : val}" ${val === '********' ? 'data-masked="true"' : ''}>
       ${val === '********' ? '<div class="form-text">Leave blank to keep the existing secret.</div>' : ''}
     </div>`;
   }).join("");
+  toggleSnowflakeAuthField();
+}
+
+function toggleSnowflakeAuthField() {
+  const authentication = document.getElementById("fld_authentication");
+  const pat = document.getElementById("fld_pat");
+  if (authentication && pat) {
+    pat.closest(".mb-3").style.display = authentication.value === "sso" ? "none" : "";
+  }
 }
 
 function openCreateModal() {

@@ -27,7 +27,7 @@ SECRET_FIELDS_BY_TYPE: dict[str, list[str]] = {
 }
 
 REQUIRED_FIELDS_BY_TYPE: dict[str, list[str]] = {
-    "snowflake": ["account", "username", "pat", "warehouse", "database", "schema"],
+    "snowflake": ["account", "username", "warehouse", "database", "schema"],
     "postgresql": ["host", "port", "database", "username"],
     "oracle": ["host", "port", "service_name", "username"],
     "sqlite": ["database_file"],
@@ -58,6 +58,12 @@ def validate_configuration(database_type: str, configuration: dict[str, Any]) ->
     missing = [f for f in required if not configuration.get(f)]
     if missing:
         raise ConfigValidationError(f"Missing required fields for {database_type}: {', '.join(missing)}")
+    if database_type == "snowflake":
+        authentication = configuration.get("authentication", "pat")
+        if authentication not in {"pat", "sso"}:
+            raise ConfigValidationError("Snowflake authentication must be 'pat' or 'sso'")
+        if authentication == "pat" and not configuration.get("pat"):
+            raise ConfigValidationError("Missing required field for snowflake: pat")
 
 
 def _encrypt_secrets(database_type: str, configuration: dict[str, Any]) -> dict[str, Any]:
