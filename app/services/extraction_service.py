@@ -8,20 +8,17 @@ from app.services import config_service, filter_service
 
 
 def list_databases(db: Session, config_id: str) -> list[str]:
-    connector, _ = config_service.build_runtime_connector(db, config_id)
-    with connector:
+    with config_service.connection_scope(db, config_id) as connector:
         return connector.get_databases()
 
 
 def list_schemas(db: Session, config_id: str, database: str | None = None) -> list[str]:
-    connector, _ = config_service.build_runtime_connector(db, config_id)
-    with connector:
+    with config_service.connection_scope(db, config_id) as connector:
         return connector.get_schemas(database)
 
 
 def list_tables(db: Session, config_id: str, database: str | None, schema: str | None) -> list[str]:
-    connector, _ = config_service.build_runtime_connector(db, config_id)
-    with connector:
+    with config_service.connection_scope(db, config_id) as connector:
         return connector.get_tables(database, schema)
 
 
@@ -49,8 +46,8 @@ def extract_schema(
     filter_id: str | None = None,
     filter_name: str | None = None,
 ) -> CanonicalSchema:
-    connector, config_obj = config_service.build_runtime_connector(db, config_id)
-    with connector:
+    config_obj = config_service.get_configuration_or_404(db, config_id)
+    with config_service.connection_scope(db, config_id) as connector:
         all_tables = connector.get_tables(database, schema)
         table_names = all_tables
         if filter_id:

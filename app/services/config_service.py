@@ -8,6 +8,7 @@ created - they are never returned by normal GET operations.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -32,6 +33,8 @@ REQUIRED_FIELDS_BY_TYPE: dict[str, list[str]] = {
     "oracle": ["host", "port", "service_name", "username"],
     "sqlite": ["database_file"],
 }
+
+_PERSISTENT_CONNECTORS: dict[str, Any] = {}
 
 
 class ConfigValidationError(ValueError):
@@ -131,6 +134,7 @@ def update_configuration(
                 continue  # unchanged secret placeholder - keep existing encrypted value
             merged[k] = v
         validate_configuration(obj.database_type, merged)
+        close_persistent_connector(config_id)
         obj.configuration = _encrypt_secrets(obj.database_type, merged)
     if enabled is not None:
         obj.enabled = enabled
@@ -163,6 +167,7 @@ def clone_configuration(db: Session, config_id: str, new_name: str) -> DatabaseC
 
 def delete_configuration(db: Session, config_id: str) -> None:
     obj = get_configuration_or_404(db, config_id)
+    close_persistent_connector(config_id)
     db.delete(obj)
     db.commit()
 
@@ -180,9 +185,20 @@ def list_configurations(db: Session) -> list[DatabaseConfiguration]:
 
 def test_configuration(db: Session, config_id: str) -> ConnectionTestResult:
     obj = get_configuration_or_404(db, config_id)
-    runtime_config = decrypt_configuration(obj.database_type, obj.configuration)
-    connector = create_connector(obj.database_type, runtime_config)
-    result = connector.test_connection()
+    is_persistent = obj.database_type == "snowflake" and obj.configuration.get("authentication", "pat") == "sso"
+    if is_persistent:
+        with connection_scope(db, config_id) as connector:
+            try:
+                cur = connector._conn.cursor()
+                cur.execute("SELECT 1")
+                cur.close()
+                result = ConnectionTestResult(True, "Connection successful")
+            except Exception as e:  # noqa: BLE001
+                result = ConnectionTestResult(False, f"Connection failed: {e}")
+    else:
+        runtime_config = decrypt_configuration(obj.database_type, obj.configuration)
+        connector = create_connector(obj.database_type, runtime_config)
+        result = connector.test_connection()
     obj.last_tested_at = datetime.now(timezone.utc)
     obj.last_test_status = "SUCCESS" if result.success else "FAILURE"
     obj.last_test_message = result.message
@@ -228,3 +244,34 @@ def build_runtime_connector(db: Session, config_id: str):
     obj = get_configuration_or_404(db, config_id)
     runtime_config = decrypt_configuration(obj.database_type, obj.configuration)
     return create_connector(obj.database_type, runtime_config), obj
+
+
+@contextmanager
+def connection_scope(db: Session, config_id: str):
+    """Yield a connector, retaining Snowflake SSO sessions for app lifetime."""
+    connector, obj = build_runtime_connector(db, config_id)
+    persistent = obj.database_type == "snowflake" and connector.configuration.get("authentication", "pat") == "sso"
+    if not persistent:
+        with connector:
+            yield connector
+        return
+
+    cached = _PERSISTENT_CONNECTORS.get(config_id)
+    if cached is None or cached._conn is None:
+        if cached is not None:
+            cached.close()
+        connector.connect()
+        _PERSISTENT_CONNECTORS[config_id] = connector
+        cached = connector
+    yield cached
+
+
+def close_persistent_connector(config_id: str) -> None:
+    connector = _PERSISTENT_CONNECTORS.pop(config_id, None)
+    if connector is not None:
+        connector.close()
+
+
+def close_all_persistent_connectors() -> None:
+    for config_id in list(_PERSISTENT_CONNECTORS):
+        close_persistent_connector(config_id)

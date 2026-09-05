@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import comparison, database_configurations, extraction, filters, reports, schemas
 from app.database import init_db
 from app.logging_config import configure_logging
+from app.services import config_service
 from app.web import router as ui_router
 
 configure_logging()
@@ -20,6 +21,11 @@ app = FastAPI(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    config_service.close_all_persistent_connectors()
 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
