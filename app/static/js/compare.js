@@ -73,7 +73,7 @@ async function onTypeChange(prefix) {
           ${CONFIGS.filter(c => c.enabled).map(c => `<option value="${c.id}">${c.name} (${c.database_type})</option>`).join("")}
         </select>
       </div>
-      <div class="mb-2"><label class="form-label">Database</label><select class="form-select" id="${prefix}_database"></select></div>
+      <div class="mb-2"><label class="form-label">Database</label><select class="form-select" id="${prefix}_database" onchange="onDatabaseChange('${prefix}')"></select></div>
       <div class="mb-2"><label class="form-label">Schema</label><select class="form-select" id="${prefix}_schema"></select></div>
     `;
   } else if (type === "schema_version") {
@@ -125,7 +125,20 @@ async function onLiveConfigChange(prefix) {
   try {
     const { databases } = await apiRequest(`/api/database-configurations/${configId}/databases`);
     dbSel.innerHTML = databases.map(d => `<option value="${d}">${d}</option>`).join("");
-    const { schemas } = await apiRequest(`/api/database-configurations/${configId}/schemas?database=${encodeURIComponent(databases[0]||"")}`);
+    await onDatabaseChange(prefix);
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function onDatabaseChange(prefix) {
+  const configId = document.getElementById(`${prefix}_config`).value;
+  const database = document.getElementById(`${prefix}_database`).value;
+  const schemaSel = document.getElementById(`${prefix}_schema`);
+  schemaSel.innerHTML = "";
+  if (!configId || !database) return;
+  try {
+    const { schemas } = await apiRequest(
+      `/api/database-configurations/${configId}/schemas?database=${encodeURIComponent(database)}`
+    );
     schemaSel.innerHTML = schemas.map(s => `<option value="${s}">${s}</option>`).join("");
   } catch (e) { showToast(e.message, "danger"); }
 }

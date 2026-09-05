@@ -91,6 +91,32 @@ def test_update_configuration_preserves_unchanged_masked_secret(tmp_app_env):
         assert reloaded.configuration["host"] == "h2"
 
 
+def test_update_configuration_clears_optional_snowflake_url(tmp_app_env):
+    with session_scope() as db:
+        obj = config_service.create_configuration(
+            db, "Snowflake URL Clear Test", "snowflake",
+            {
+                "account": "acct", "username": "u", "pat": "secret",
+                "url": "https://old.example", "warehouse": "wh",
+                "database": "db", "schema": "sch",
+            },
+        )
+        config_id = obj.id
+
+    with session_scope() as db:
+        config_service.update_configuration(
+            db, config_id,
+            configuration={
+                "account": "acct", "username": "u", "pat": "********",
+                "url": "", "warehouse": "wh", "database": "db", "schema": "sch",
+            },
+        )
+
+    with session_scope() as db:
+        reloaded = config_service.get_configuration_or_404(db, config_id)
+        assert reloaded.configuration["url"] == ""
+
+
 def test_adhoc_test_uses_current_form_values_not_stale_saved_ones(tmp_app_env, test_databases):
     """Regression test: the 'Test Connection' button must always test the
     CURRENT (possibly unsaved/edited) field values, never a stale saved

@@ -139,7 +139,7 @@ function collectConfigPayload() {
     if (el) {
       if (el.dataset.masked === "true" && el.value === "") {
         configuration[key] = "********";
-      } else if (el.value !== "") {
+      } else if (el.value !== "" || (id && key === "url")) {
         configuration[key] = el.type === "number" ? Number(el.value) : el.value;
       }
     }
