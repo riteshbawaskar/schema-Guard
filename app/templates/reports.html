@@ -6,8 +6,8 @@
 <div class="section-card">
   <div class="table-responsive">
     <table class="table table-dbv align-middle">
-      <thead><tr><th>Comparison</th><th>Source → Destination</th><th>Status</th><th>Differences</th><th>Size</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
-      <tbody id="reportTable"><tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+      <thead><tr><th>Comparison</th><th>Source → Destination</th><th>Status</th><th>Description</th><th>Differences</th><th>Compare Time</th><th>Size</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+      <tbody id="reportTable"><tr><td colspan="9" class="text-center text-muted py-4">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -22,32 +22,68 @@ async function loadReports() {
       apiRequest("/api/compare?limit=1000"),
     ]);
     const compById = Object.fromEntries(comparisons.map(c => [c.id, c]));
-    if (!reports.length) {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No reports yet. <a href="/compare">Run a comparison</a>.</td></tr>`;
+    if (!comparisons.length) {
+      tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">No reports yet. <a href="/compare">Run a comparison</a>.</td></tr>`;
       return;
     }
-    tbody.innerHTML = reports.map(r => {
-      const c = compById[r.comparison_id] || {};
+    const reportByComparison = Object.fromEntries(reports.map(r => [r.comparison_id, r]));
+    tbody.innerHTML = comparisons.map(c => {
+      const r = reportByComparison[c.id] || {};
       const src = c.source_label || c.source_reference || c.source_type || "-";
       const dst = c.destination_label || c.destination_reference || c.destination_type || "-";
       return `
       <tr>
-        <td><code>${r.comparison_id.slice(0,8)}</code></td>
+        <td><code>${c.id.slice(0,8)}</code></td>
         <td>${src} &rarr; ${dst}</td>
-        <td>${statusBadge(c.status)}</td>
+        <td>${statusBadge(displayStatus(c))}</td>
+        <td class="${c.error_message ? "text-danger" : "text-muted"}">${escapeHtml(description(c))}</td>
         <td>${c.difference_count ?? "-"}</td>
-        <td>${((r.file_size||0)/1024).toFixed(1)} KB</td>
-        <td>${fmtDate(r.created_at)}</td>
+        <td class="compare-time" data-created="${c.created_at}" data-duration="${c.duration ?? ""}" data-status="${c.status}">${formatCompareTime(c)}</td>
+        <td>${r.file_size ? ((r.file_size||0)/1024).toFixed(1) + " KB" : "-"}</td>
+        <td>${fmtDate(c.created_at)}</td>
         <td class="text-end">
-          <a class="btn btn-sm btn-outline-primary" href="/reports/view/${r.comparison_id}" target="_blank" title="Open"><i class="bi bi-box-arrow-up-right"></i></a>
-          <a class="btn btn-sm btn-outline-primary" href="/api/reports/${r.id}/html" download="report-${r.comparison_id.slice(0,8)}.html" title="Download"><i class="bi bi-download"></i></a>
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${r.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+          <a class="btn btn-sm btn-outline-primary ${r.id ? "" : "disabled"}" href="${r.id ? `/reports/view/${c.id}` : "#"}" target="_blank" title="Open"><i class="bi bi-box-arrow-up-right"></i></a>
+          <a class="btn btn-sm btn-outline-primary ${r.id ? "" : "disabled"}" href="${r.id ? `/api/reports/${r.id}/html` : "#"}" download="report-${c.id.slice(0,8)}.html" title="Download"><i class="bi bi-download"></i></a>
+          ${r.id ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${r.id}')" title="Delete"><i class="bi bi-trash"></i></button>` : `<button class="btn btn-sm btn-outline-danger" disabled title="Delete"><i class="bi bi-trash"></i></button>`}
         </td>
       </tr>`;
     }).join("");
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${e.message}</td></tr>`;
   }
+}
+
+function formatCompareTime(comparison) {
+  if (comparison.status === "RUNNING") {
+    return `${((Date.now() - new Date(comparison.created_at).getTime()) / 1000).toFixed(1)} s`;
+  }
+  return comparison.duration == null ? "-" : `${Number(comparison.duration).toFixed(1)} s`;
+}
+
+function displayStatus(comparison) {
+  if (comparison.status === "RUNNING") return "RUNNING";
+  if (comparison.status === "ERROR") return "ERROR";
+  return comparison.report_path ? "COMPLETED" : comparison.status;
+}
+
+function description(comparison) {
+  if (comparison.error_message) return comparison.error_message;
+  if (comparison.status === "FAIL") return "Completed with schema differences";
+  if (comparison.status === "PASS") return "Completed without configured differences";
+  if (comparison.status === "RUNNING") return "Comparison is running";
+  return "-";
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
+  }[character]));
+}
+
+function refreshRunningTimes() {
+  document.querySelectorAll(".compare-time[data-status='RUNNING']").forEach(el => {
+    el.textContent = `${((Date.now() - new Date(el.dataset.created).getTime()) / 1000).toFixed(1)} s`;
+  });
 }
 
 async function deleteReport(reportId) {
@@ -61,5 +97,6 @@ async function deleteReport(reportId) {
   }
 }
 loadReports();
+setInterval(() => { refreshRunningTimes(); loadReports(); }, 2000);
 </script>
 {% endblock %}

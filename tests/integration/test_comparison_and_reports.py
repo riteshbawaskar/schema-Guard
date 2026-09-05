@@ -1,5 +1,5 @@
 from app.database import session_scope
-from app.services import comparison_service, config_service, filter_service
+from app.services import comparison_service, config_service, filter_service, report_service
 
 
 def _setup_configs(db, test_databases):
@@ -120,3 +120,23 @@ def test_delete_report_removes_file_and_comparison_history(tmp_app_env, test_dat
         # The comparison no longer appears in recent comparisons.
         with _pytest.raises(LookupError):
             report_service.get_comparison_or_404(db, comparison_id)
+
+
+def test_failed_comparison_persists_error_message(tmp_app_env, test_databases):
+    with session_scope() as db:
+        _, destination_id = _setup_configs(db, test_databases)
+        failed_source = config_service.create_configuration(
+            db, "Missing Source", "sqlite",
+            {"database_file": "does-not-exist.db"},
+        )
+        comparison_row = None
+        try:
+            comparison_service.run_comparison(
+                db, "live", failed_source.id, "live", destination_id
+            )
+        except Exception:
+            comparison_row = report_service.list_comparisons(db, 1)[0]
+
+        assert comparison_row is not None
+        assert comparison_row.status == "ERROR"
+        assert comparison_row.error_message

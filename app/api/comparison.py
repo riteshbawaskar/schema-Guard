@@ -8,14 +8,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services import comparison_service, report_service
+from app.services.comparison_service import SourceType
 
 router = APIRouter(prefix="/api/compare", tags=["comparison"])
 
 
 class CompareRequest(BaseModel):
-    source_type: str  # live|schema_version|uploaded_json
+    source_type: SourceType
     source_reference: str
-    destination_type: str
+    destination_type: SourceType
     destination_reference: str
     source_filter_id: Optional[str] = None
     destination_filter_id: Optional[str] = None
@@ -43,7 +44,7 @@ def _serialize_comparison(obj) -> dict:
 @router.post("")
 def run_comparison(payload: CompareRequest, db: Session = Depends(get_db)):
     try:
-        comparison_row, result, report_path = comparison_service.run_comparison(
+        comparison_row = comparison_service.create_comparison_job(
             db,
             payload.source_type, payload.source_reference,
             payload.destination_type, payload.destination_reference,
@@ -52,10 +53,7 @@ def run_comparison(payload: CompareRequest, db: Session = Depends(get_db)):
             payload.destination_database, payload.destination_schema,
             payload.normalization_mode, payload.fail_on,
         )
-        return {
-            "comparison": _serialize_comparison(comparison_row),
-            "result": result.model_dump(mode="json"),
-        }
+        return {"comparison": _serialize_comparison(comparison_row)}
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:  # noqa: BLE001

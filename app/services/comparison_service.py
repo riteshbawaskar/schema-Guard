@@ -8,6 +8,7 @@ engine, persist a Comparison row, and render/save the HTML report.
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.comparison.engine import compare_schemas
 from app.comparison.models import ComparisonResult
+from app.database import session_scope
 from app.filters.engine import apply_filter
 from app.models import Comparison
 from app.schema.canonical import CanonicalSchema
@@ -22,6 +24,12 @@ from app.services import extraction_service, filter_service, schema_service
 from app.storage import report_storage
 
 SourceType = Literal["live", "schema_version", "uploaded_json"]
+
+_JOB_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="comparison")
+
+
+def shutdown_comparison_jobs() -> None:
+    _JOB_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
 def _filter_canonical_schema(schema: CanonicalSchema, filter_id: str | None, db: Session) -> tuple[CanonicalSchema, list[str]]:
@@ -146,3 +154,106 @@ def run_comparison(
         comparison_row.duration = time.monotonic() - start
         db.commit()
         raise
+
+
+def create_comparison_job(
+    db: Session,
+    source_type: SourceType,
+    source_reference: str,
+    destination_type: SourceType,
+    destination_reference: str,
+    source_filter_id: str | None = None,
+    destination_filter_id: str | None = None,
+    source_database: str | None = None,
+    source_schema: str | None = None,
+    destination_database: str | None = None,
+    destination_schema: str | None = None,
+    normalization_mode: str = "compatible",
+    fail_on: list[str] | None = None,
+) -> Comparison:
+    """Create a visible RUNNING job and execute it outside the request."""
+    comparison_row = Comparison(
+        source_type=source_type,
+        source_reference=source_reference,
+        destination_type=destination_type,
+        destination_reference=destination_reference,
+        source_filter_id=source_filter_id,
+        destination_filter_id=destination_filter_id,
+        status="RUNNING",
+    )
+    db.add(comparison_row)
+    db.commit()
+    db.refresh(comparison_row)
+    job_args = (
+        source_type, source_reference, destination_type, destination_reference,
+        source_filter_id, destination_filter_id, source_database, source_schema,
+        destination_database, destination_schema, normalization_mode, fail_on,
+    )
+    _JOB_EXECUTOR.submit(_run_comparison_job, comparison_row.id, job_args)
+    return comparison_row
+
+
+def _run_comparison_job(comparison_id: str, args: tuple) -> None:
+    try:
+        with session_scope() as db:
+            # run_comparison creates its own row for synchronous callers, so
+            # run the worker against the already-created job here.
+            comparison_row = db.get(Comparison, comparison_id)
+            if comparison_row is None:
+                return
+            start = time.monotonic()
+            try:
+                src_schema, src_removed, src_label = resolve_side(
+                    db, args[0], args[1], args[4], args[6], args[7]
+                )
+                dst_schema, dst_removed, dst_label = resolve_side(
+                    db, args[2], args[3], args[5], args[8], args[9]
+                )
+                result = compare_schemas(src_schema, dst_schema, fail_on=args[11])
+                result.source_label = src_label
+                result.destination_label = dst_label
+                result.normalization_mode = args[10]
+                if args[4]:
+                    result.source_filter = filter_service.get_filter_or_404(db, args[4]).name
+                if args[5]:
+                    result.destination_filter = filter_service.get_filter_or_404(db, args[5]).name
+                result.removed_by_filter = {"source": src_removed, "destination": dst_removed}
+
+                from app.reports.html_report import render_html_report
+                html = render_html_report(result, comparison_id)
+                report_path = report_storage.save_report(comparison_id, html)
+                from app.models import Report
+                db.add(Report(
+                    comparison_id=comparison_id,
+                    file_path=str(report_path),
+                    file_size=len(html.encode()),
+                ))
+                comparison_row.status = result.status
+                comparison_row.source_label = result.source_label
+                comparison_row.destination_label = result.destination_label
+                comparison_row.table_count = result.summary.tables_compared
+                comparison_row.column_count = (
+                    result.summary.columns_added + result.summary.columns_removed
+                    + result.summary.columns_modified
+                )
+                comparison_row.difference_count = result.summary.difference_count
+                comparison_row.critical_count = result.summary.critical_count
+                comparison_row.high_count = result.summary.high_count
+                comparison_row.medium_count = result.summary.medium_count
+                comparison_row.low_count = result.summary.low_count
+                comparison_row.info_count = result.summary.info_count
+                comparison_row.report_path = str(report_path)
+                comparison_row.duration = time.monotonic() - start
+            except Exception as exc:  # noqa: BLE001
+                comparison_row.status = "ERROR"
+                comparison_row.error_message = str(exc)
+                comparison_row.duration = time.monotonic() - start
+            db.commit()
+    except Exception:
+        # The job has no request context; leave a best-effort error update.
+        with session_scope() as db:
+            comparison_row = db.get(Comparison, comparison_id)
+            if comparison_row is not None:
+                comparison_row.status = "ERROR"
+                comparison_row.error_message = "Background comparison failed"
+                db.commit()

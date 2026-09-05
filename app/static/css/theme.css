@@ -25,6 +25,7 @@ body { background: var(--bg); color: var(--text); font-size: 14.5px; }
 .table-dbv thead th { background: var(--light); color: var(--dark); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; border-bottom: none; }
 .table-dbv td, .table-dbv th { vertical-align: middle; }
 .badge-status-SUCCESS, .badge-status-PASS { background: #E8F5E9; color: var(--success); }
+.badge-status-COMPLETED { background: #E8F5E9; color: var(--success); }
 .badge-status-FAILURE, .badge-status-FAIL, .badge-status-ERROR { background: #FFEBEE; color: var(--error); }
 .badge-status-PENDING, .badge-status-RUNNING { background: #FFF3E0; color: var(--warning); }
 .page-header { padding: 22px 0 10px; }

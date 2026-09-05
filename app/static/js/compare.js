@@ -189,7 +189,8 @@ async function runComparison() {
 
   try {
     const data = await apiRequest("/api/compare", { method: "POST", body: payload });
-    renderComparisonSummary(data);
+    resultDiv.innerHTML = `<div class="section-card"><div class="alert alert-warning mb-0">Comparison job created with status ${statusBadge(data.comparison.status)}. Track progress on the Reports page.</div></div>`;
+    window.location.href = "/reports";
   } catch (e) {
     resultDiv.innerHTML = `<div class="section-card"><div class="alert alert-danger mb-0">${e.message}</div></div>`;
   }

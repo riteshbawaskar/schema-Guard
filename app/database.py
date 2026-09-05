@@ -64,6 +64,8 @@ def _apply_additive_column_migrations() -> None:
     additive_columns = {
         "source_label": "VARCHAR(255)",
         "destination_label": "VARCHAR(255)",
+        "error_message": "TEXT",
+        "duration": "FLOAT",
     }
     missing = {name: ddl for name, ddl in additive_columns.items() if name not in existing_columns}
     if not missing:
