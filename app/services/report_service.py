@@ -49,6 +49,21 @@ def delete_report(db: Session, report_id: str) -> None:
     db.commit()
 
 
+def delete_comparison(db: Session, comparison_id: str) -> None:
+    """Delete a comparison whether or not report generation completed."""
+    comparison = get_comparison_or_404(db, comparison_id)
+    report = db.scalar(select(Report).where(Report.comparison_id == comparison_id))
+    if report is not None:
+        from pathlib import Path
+        try:
+            Path(report.file_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+        db.delete(report)
+    db.delete(comparison)
+    db.commit()
+
+
 def dashboard_stats(db: Session) -> dict:
     from app.models import DatabaseConfiguration, SchemaVersion, TableFilter
     comparisons = list(db.scalars(select(Comparison)))

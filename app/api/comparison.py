@@ -68,6 +68,15 @@ def get_comparison(comparison_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.delete("/{comparison_id}")
+def delete_comparison(comparison_id: str, db: Session = Depends(get_db)):
+    try:
+        report_service.delete_comparison(db, comparison_id)
+        return {"deleted": True}
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("")
 def list_comparisons(limit: int = 50, db: Session = Depends(get_db)):
     return [_serialize_comparison(o) for o in report_service.list_comparisons(db, limit)]

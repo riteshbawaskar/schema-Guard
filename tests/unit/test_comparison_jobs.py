@@ -12,6 +12,13 @@ def test_create_comparison_job_persists_running_and_submits(monkeypatch):
             submitted["args"] = args
 
     class FakeDb:
+        def get(self, _, config_id):
+            return SimpleNamespace(
+                id=config_id,
+                name="Source Config" if config_id == "source" else "Destination Config",
+                configuration={"database": "APP", "schema": "PUBLIC"},
+            )
+
         def add(self, obj):
             self.obj = obj
             obj.id = "comparison-id"
@@ -29,5 +36,7 @@ def test_create_comparison_job_persists_running_and_submits(monkeypatch):
 
     assert row.id == "comparison-id"
     assert row.status == "RUNNING"
+    assert row.source_label == "Source Config (APP.PUBLIC)"
+    assert row.destination_label == "Destination Config (APP.PUBLIC)"
     assert submitted["committed"] is True
     assert submitted["args"][0] == "comparison-id"

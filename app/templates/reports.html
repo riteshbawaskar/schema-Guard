@@ -44,7 +44,7 @@ async function loadReports() {
         <td class="text-end">
           <a class="btn btn-sm btn-outline-primary ${r.id ? "" : "disabled"}" href="${r.id ? `/reports/view/${c.id}` : "#"}" target="_blank" title="Open"><i class="bi bi-box-arrow-up-right"></i></a>
           <a class="btn btn-sm btn-outline-primary ${r.id ? "" : "disabled"}" href="${r.id ? `/api/reports/${r.id}/html` : "#"}" download="report-${c.id.slice(0,8)}.html" title="Download"><i class="bi bi-download"></i></a>
-          ${r.id ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${r.id}')" title="Delete"><i class="bi bi-trash"></i></button>` : `<button class="btn btn-sm btn-outline-danger" disabled title="Delete"><i class="bi bi-trash"></i></button>`}
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteComparison('${c.id}')" title="Delete"><i class="bi bi-trash"></i></button>
         </td>
       </tr>`;
     }).join("");
@@ -86,11 +86,11 @@ function refreshRunningTimes() {
   });
 }
 
-async function deleteReport(reportId) {
-  if (!confirm("Delete this report and its comparison history entry?")) return;
+async function deleteComparison(comparisonId) {
+  if (!confirm("Delete this comparison and any generated report?")) return;
   try {
-    await apiRequest(`/api/reports/${reportId}`, { method: "DELETE" });
-    showToast("Report deleted", "success");
+    await apiRequest(`/api/compare/${comparisonId}`, { method: "DELETE" });
+    showToast("Comparison deleted", "success");
     loadReports();
   } catch (e) {
     showToast(e.message, "danger");

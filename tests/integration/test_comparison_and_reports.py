@@ -81,16 +81,31 @@ def test_comparison_labels_are_persisted_and_human_readable(tmp_app_env, test_da
     with session_scope() as db:
         src_id, dst_id = _setup_configs(db, test_databases)
         comparison_row, result, _ = comparison_service.run_comparison(db, "live", src_id, "live", dst_id)
-        assert comparison_row.source_label == "Src"
-        assert comparison_row.destination_label == "Dst"
+        assert comparison_row.source_label == "Src (source.main)"
+        assert comparison_row.destination_label == "Dst (destination.main)"
         assert comparison_row.source_label == result.source_label
         comparison_id = comparison_row.id
 
     from app.services import report_service
     with session_scope() as db:
         reloaded = report_service.get_comparison_or_404(db, comparison_id)
-        assert reloaded.source_label == "Src"
-        assert reloaded.destination_label == "Dst"
+        assert reloaded.source_label == "Src (source.main)"
+        assert reloaded.destination_label == "Dst (destination.main)"
+
+
+def test_live_comparison_labels_use_selected_database_and_schema(tmp_app_env, test_databases):
+    with session_scope() as db:
+        src_id, dst_id = _setup_configs(db, test_databases)
+        comparison_row, result, _ = comparison_service.run_comparison(
+            db, "live", src_id, "live", dst_id,
+            source_database="SOURCE_DB", source_schema="PUBLIC",
+            destination_database="DEST_DB", destination_schema="REPORTING",
+        )
+
+        assert comparison_row.source_label == "Src (SOURCE_DB.PUBLIC)"
+        assert comparison_row.destination_label == "Dst (DEST_DB.REPORTING)"
+        assert result.source_label == "Src (SOURCE_DB.PUBLIC)"
+        assert result.destination_label == "Dst (DEST_DB.REPORTING)"
 
 
 def test_delete_report_removes_file_and_comparison_history(tmp_app_env, test_databases):
@@ -140,3 +155,19 @@ def test_failed_comparison_persists_error_message(tmp_app_env, test_databases):
         assert comparison_row is not None
         assert comparison_row.status == "ERROR"
         assert comparison_row.error_message
+
+
+def test_delete_failed_comparison_without_report(tmp_app_env, test_databases):
+    with session_scope() as db:
+        _, destination_id = _setup_configs(db, test_databases)
+        failed_source = config_service.create_configuration(
+            db, "Missing Source Delete", "sqlite", {"database_file": "missing.db"}
+        )
+        try:
+            comparison_service.run_comparison(db, "live", failed_source.id, "live", destination_id)
+        except Exception:
+            comparison_id = report_service.list_comparisons(db, 1)[0].id
+            report_service.delete_comparison(db, comparison_id)
+            import pytest
+            with pytest.raises(LookupError):
+                report_service.get_comparison_or_404(db, comparison_id)

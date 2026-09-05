@@ -51,3 +51,14 @@ def test_report_html_is_well_formed_around_script_tag():
     # should still close normally after it.
     assert html.count('id="report-data"') == 1
     assert html.strip().endswith("</html>")
+
+
+def test_report_diff_tables_share_fixed_column_layout():
+    src = _schema_with_special_chars()
+    dst = CanonicalSchema(metadata=src.metadata, tables=[])
+    result = compare_schemas(src, dst)
+    html = render_html_report(result, "regression-test-columns")
+
+    assert "table-layout:fixed" in html
+    assert "th:nth-child(1)" in html
+    assert "th:nth-child(4)" in html

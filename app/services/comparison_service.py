@@ -20,7 +20,7 @@ from app.database import session_scope
 from app.filters.engine import apply_filter
 from app.models import Comparison
 from app.schema.canonical import CanonicalSchema
-from app.services import extraction_service, filter_service, schema_service
+from app.services import config_service, extraction_service, filter_service, schema_service
 from app.storage import report_storage
 
 SourceType = Literal["live", "schema_version", "uploaded_json"]
@@ -46,6 +46,47 @@ def _filter_canonical_schema(schema: CanonicalSchema, filter_id: str | None, db:
     return filtered_schema, removed
 
 
+def _live_side_label(raw: CanonicalSchema, database: str | None, schema_name: str | None, fallback: str) -> str:
+    selected_database = database or raw.metadata.database
+    selected_schema = schema_name or raw.metadata.schema_name
+    config_name = raw.metadata.database_configuration or fallback
+    if selected_database and selected_schema:
+        return f"{config_name} ({selected_database}.{selected_schema})"
+    if selected_database:
+        return f"{config_name} ({selected_database})"
+    if selected_schema:
+        return f"{config_name} ({selected_schema})"
+    return config_name
+
+
+def _initial_job_label(
+    db: Session,
+    source_type: SourceType,
+    reference: str,
+    database: str | None,
+    schema_name: str | None,
+) -> str:
+    if source_type == "live":
+        config = config_service.get_configuration_or_404(db, reference)
+        configured_database = database or config.configuration.get("database")
+        configured_schema = schema_name or config.configuration.get("schema")
+        if configured_database and configured_schema:
+            return f"{config.name} ({configured_database}.{configured_schema})"
+        if configured_database:
+            return f"{config.name} ({configured_database})"
+        if configured_schema:
+            return f"{config.name} ({configured_schema})"
+        return config.name
+    if source_type == "schema_version":
+        version = schema_service.get_version_or_404(db, reference)
+        return version.schema_name or version.name
+    if source_type == "uploaded_json":
+        from app.storage.schema_storage import load_schema_from_path
+        raw = load_schema_from_path(reference)
+        return raw.metadata.schema_name or raw.metadata.database or reference
+    return reference
+
+
 def resolve_side(
     db: Session,
     source_type: SourceType,
@@ -60,20 +101,22 @@ def resolve_side(
         raw = extraction_service.extract_schema(
             db, config_id=reference, database=database, schema=schema_name, filter_id=None
         )
-        label = raw.metadata.database_configuration or reference
+        label = _live_side_label(
+            raw, database, schema_name, raw.metadata.database_configuration or reference
+        )
         filtered, removed = _filter_canonical_schema(raw, filter_id, db)
         return filtered, removed, label
     elif source_type == "schema_version":
         version = schema_service.get_version_or_404(db, reference)
         raw = schema_service.load_canonical_schema(version)
-        label = f"{version.name} (v{version.version})"
+        label = raw.metadata.schema_name or version.schema_name or version.name
         filtered, removed = _filter_canonical_schema(raw, filter_id, db)
         return filtered, removed, label
     elif source_type == "uploaded_json":
         # reference = file path under data/uploads
         from app.storage.schema_storage import load_schema_from_path
         raw = load_schema_from_path(reference)
-        label = f"Uploaded: {raw.metadata.database or reference}"
+        label = raw.metadata.schema_name or raw.metadata.database or reference
         filtered, removed = _filter_canonical_schema(raw, filter_id, db)
         return filtered, removed, label
     else:
@@ -180,6 +223,10 @@ def create_comparison_job(
         source_filter_id=source_filter_id,
         destination_filter_id=destination_filter_id,
         status="RUNNING",
+        source_label=_initial_job_label(db, source_type, source_reference, source_database, source_schema),
+        destination_label=_initial_job_label(
+            db, destination_type, destination_reference, destination_database, destination_schema
+        ),
     )
     db.add(comparison_row)
     db.commit()
