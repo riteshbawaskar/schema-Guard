@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>SchemaSentry Report - {{ comparison_id }}</title>
+<title>SchemaGuard Report - {{ comparison_id }}</title>
 <style>
   :root {
     --primary:#1565C0; --dark:#0D47A1; --light:#E3F2FD; --bg:#F7F9FC;
@@ -65,7 +65,7 @@
 <body>
 <header>
   <h1>Schema Comparison Report <span class="status-badge status-{{ result.status }}">{{ result.status }}</span></h1>
-  <div class="meta" style="opacity:.75;font-size:11px;margin-bottom:2px;">SchemaSentry - DB Schema Validator</div>
+  <div class="meta" style="opacity:.75;font-size:11px;margin-bottom:2px;">SchemaGuard - DB Schema Validator</div>
   <div class="meta">
     <strong>Source:</strong> {{ result.source_label }}{% if result.source_filter %} (filter: {{ result.source_filter }}){% endif %}
     &nbsp;→&nbsp;

@@ -12,8 +12,8 @@ from app.web import router as ui_router
 configure_logging()
 
 app = FastAPI(
-    title="SchemaSentry",
-    description="SchemaSentry - extract, validate, version and compare database schemas.",
+    title="SchemaGuard",
+    description="SchemaGuard - extract, validate, version and compare database schemas.",
     version="1.0.0",
 )
 

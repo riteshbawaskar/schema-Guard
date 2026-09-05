@@ -1,4 +1,4 @@
-"""SchemaSentry CLI (DB Schema Validator).
+"""SchemaGuard CLI (DB Schema Validator).
 
 Uses the exact same services as the REST API and UI - no duplicated logic.
 
@@ -23,7 +23,7 @@ from app.database import init_db, session_scope
 from app.schema.canonical import CanonicalSchema
 from app.services import comparison_service, config_service, extraction_service, filter_service, schema_service
 
-app = typer.Typer(add_completion=False, help="SchemaSentry CLI - DB Schema Validator")
+app = typer.Typer(add_completion=False, help="SchemaGuard CLI - DB Schema Validator")
 
 
 def _resolve_config_id(db, name_or_id: str) -> str:
