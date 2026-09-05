@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Schema Versions{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h2><i class="bi bi-clock-history"></i> Schema Versions</h2>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#importModal"><i class="bi bi-upload"></i> Import JSON</button>
+</div>
+
+<div class="section-card">
+  <div class="table-responsive">
+    <table class="table table-dbv align-middle">
+      <thead><tr><th>Name</th><th>Version</th><th>Type</th><th>Database / Schema</th><th>Tables</th><th>Columns</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+      <tbody id="versionTable"><tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Import Schema JSON</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Version Name</label><input class="form-control" id="importName"></div>
+        <div class="mb-3"><label class="form-label">Description</label><input class="form-control" id="importDescription"></div>
+        <div class="mb-3"><label class="form-label">JSON File</label><input class="form-control" type="file" id="importFile" accept=".json"></div>
+        <div id="importStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadVersions() {
+  const tbody = document.getElementById("versionTable");
+  try {
+    const versions = await apiRequest("/api/schema/versions");
+    if (!versions.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No schema versions yet. <a href="/schema-extraction">Extract one</a>.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = versions.map(v => `
+      <tr>
+        <td><strong>${v.name}</strong>${v.description ? `<div class="text-muted small">${v.description}</div>` : ""}</td>
+        <td><span class="badge text-bg-light border">v${v.version}</span></td>
+        <td>${v.database_type}</td>
+        <td>${v.database_name || "-"} / ${v.schema_name || "-"}</td>
+        <td>${v.table_count}</td>
+        <td>${v.column_count}</td>
+        <td>${fmtDate(v.created_at)}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-primary" href="/api/schema/versions/${v.id}/download" download title="Download"><i class="bi bi-download"></i></a>
+          <button class="btn btn-sm btn-outline-primary" onclick="renameVersion('${v.id}')" title="Rename"><i class="bi bi-pencil"></i></button>
+          <a class="btn btn-sm btn-outline-primary" href="/compare?source_type=schema_version&source_reference=${v.id}" title="Compare"><i class="bi bi-arrow-left-right"></i></a>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteVersion('${v.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${e.message}</td></tr>`;
+  }
+}
+
+async function renameVersion(id) {
+  const newName = prompt("New name:");
+  if (!newName) return;
+  try {
+    await apiRequest(`/api/schema/versions/${id}/rename?new_name=${encodeURIComponent(newName)}`, { method: "PUT" });
+    showToast("Renamed", "success");
+    loadVersions();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function deleteVersion(id) {
+  if (!confirm("Delete this schema version?")) return;
+  try {
+    await apiRequest(`/api/schema/versions/${id}`, { method: "DELETE" });
+    showToast("Deleted", "success");
+    loadVersions();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function doImport() {
+  const name = document.getElementById("importName").value;
+  const description = document.getElementById("importDescription").value;
+  const fileInput = document.getElementById("importFile");
+  const statusDiv = document.getElementById("importStatus");
+  if (!name || !fileInput.files.length) { showToast("Name and file are required", "warning"); return; }
+  const formData = new FormData();
+  formData.append("name", name);
+  if (description) formData.append("description", description);
+  formData.append("file", fileInput.files[0]);
+  statusDiv.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Importing...</div>`;
+  try {
+    const resp = await fetch("/api/schema/versions/import", { method: "POST", body: formData });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Import failed");
+    statusDiv.innerHTML = `<div class="alert alert-success py-2">Imported as version ${data.version}.</div>`;
+    showToast("Schema imported", "success");
+    loadVersions();
+  } catch (e) {
+    statusDiv.innerHTML = `<div class="alert alert-danger py-2">${e.message}</div>`;
+  }
+}
+
+loadVersions();
+</script>
+{% endblock %}

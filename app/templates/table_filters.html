@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Table Filters{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h2><i class="bi bi-funnel"></i> Table Filters</h2>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#filterModal" onclick="openCreateModal()">
+    <i class="bi bi-plus-lg"></i> Add Filter
+  </button>
+</div>
+
+<div class="section-card">
+  <div class="table-responsive">
+    <table class="table table-dbv align-middle">
+      <thead><tr><th>Name</th><th>Match Mode</th><th>Include</th><th>Exclude</th><th>Updated</th><th class="text-end">Actions</th></tr></thead>
+      <tbody id="filterTable"><tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="filterModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="filterModalTitle">Add Table Filter</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="filterId">
+        <div class="mb-3"><label class="form-label">Name</label><input class="form-control" id="filterName" placeholder="e.g. AX Tables"></div>
+        <div class="mb-3"><label class="form-label">Description</label><input class="form-control" id="filterDescription"></div>
+        <div class="mb-3">
+          <label class="form-label">Match Mode</label>
+          <select class="form-select" id="filterMatchMode">
+            <option value="starts_with">Starts With</option>
+            <option value="ends_with">Ends With</option>
+            <option value="contains">Contains</option>
+            <option value="exact">Exact</option>
+            <option value="wildcard">Wildcard (e.g. AX*)</option>
+            <option value="regex">Regex</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Include Patterns (one per line)</label>
+          <textarea class="form-control" id="filterInclude" rows="3" placeholder="AX*"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Exclude Patterns (one per line)</label>
+          <textarea class="form-control" id="filterExclude" rows="3" placeholder="AX_TEMP*&#10;AX_BACKUP*"></textarea>
+        </div>
+        <hr>
+        <div class="mb-2">
+          <label class="form-label">Preview against sample names (comma-separated)</label>
+          <div class="input-group">
+            <input class="form-control" id="previewNames" placeholder="AX_CUSTOMER, AX_ACCOUNT, CUSTOMER, AX_TEMP_1">
+            <button class="btn btn-outline-primary" onclick="previewFilter()">Preview</button>
+          </div>
+        </div>
+        <div id="previewResult"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="saveFilter()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function openCreateModal() {
+  document.getElementById("filterModalTitle").textContent = "Add Table Filter";
+  document.getElementById("filterId").value = "";
+  document.getElementById("filterName").value = "";
+  document.getElementById("filterDescription").value = "";
+  document.getElementById("filterMatchMode").value = "wildcard";
+  document.getElementById("filterInclude").value = "";
+  document.getElementById("filterExclude").value = "";
+  document.getElementById("previewResult").innerHTML = "";
+}
+
+async function openEditModal(id) {
+  const f = await apiRequest(`/api/filters/${id}`);
+  document.getElementById("filterModalTitle").textContent = "Edit Table Filter";
+  document.getElementById("filterId").value = f.id;
+  document.getElementById("filterName").value = f.name;
+  document.getElementById("filterDescription").value = f.description || "";
+  document.getElementById("filterMatchMode").value = f.match_mode;
+  document.getElementById("filterInclude").value = (f.include_patterns || []).join("\n");
+  document.getElementById("filterExclude").value = (f.exclude_patterns || []).join("\n");
+  document.getElementById("previewResult").innerHTML = "";
+  new bootstrap.Modal(document.getElementById("filterModal")).show();
+}
+
+function collectFilterPayload() {
+  return {
+    name: document.getElementById("filterName").value,
+    description: document.getElementById("filterDescription").value || null,
+    match_mode: document.getElementById("filterMatchMode").value,
+    include_patterns: document.getElementById("filterInclude").value.split("\n").map(s => s.trim()).filter(Boolean),
+    exclude_patterns: document.getElementById("filterExclude").value.split("\n").map(s => s.trim()).filter(Boolean),
+  };
+}
+
+async function saveFilter() {
+  const id = document.getElementById("filterId").value;
+  try {
+    if (id) {
+      await apiRequest(`/api/filters/${id}`, { method: "PUT", body: collectFilterPayload() });
+      showToast("Filter updated", "success");
+    } else {
+      await apiRequest(`/api/filters`, { method: "POST", body: collectFilterPayload() });
+      showToast("Filter created", "success");
+    }
+    bootstrap.Modal.getInstance(document.getElementById("filterModal")).hide();
+    loadFilters();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function previewFilter() {
+  const names = document.getElementById("previewNames").value.split(",").map(s => s.trim()).filter(Boolean);
+  const resultDiv = document.getElementById("previewResult");
+  if (!names.length) { resultDiv.innerHTML = `<div class="text-muted">Enter some sample names above.</div>`; return; }
+  // Preview locally against the in-progress form (not-yet-saved) values using a temp filter creation is heavy;
+  // instead call preview against a saved filter if editing, otherwise do a client-side approximation via API after save.
+  const id = document.getElementById("filterId").value;
+  if (!id) {
+    resultDiv.innerHTML = `<div class="alert alert-warning py-2">Save the filter first to preview against live logic, or use Schema Extraction preview.</div>`;
+    return;
+  }
+  try {
+    const result = await apiRequest(`/api/filters/${id}/preview`, { method: "POST", body: { candidate_names: names } });
+    resultDiv.innerHTML = `<div class="mb-1"><strong>Matched (${result.matched_count}):</strong> ${result.matched.join(", ") || "(none)"}</div>
+      <div class="text-muted"><strong>Excluded:</strong> ${result.excluded.join(", ") || "(none)"}</div>`;
+  } catch (e) { resultDiv.innerHTML = `<div class="alert alert-danger py-2">${e.message}</div>`; }
+}
+
+async function cloneFilter(id) {
+  const newName = prompt("New filter name:");
+  if (!newName) return;
+  try {
+    await apiRequest(`/api/filters/${id}/clone`, { method: "POST", body: { new_name: newName } });
+    showToast("Cloned", "success");
+    loadFilters();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function deleteFilter(id) {
+  if (!confirm("Delete this filter?")) return;
+  try {
+    await apiRequest(`/api/filters/${id}`, { method: "DELETE" });
+    showToast("Deleted", "success");
+    loadFilters();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function loadFilters() {
+  const tbody = document.getElementById("filterTable");
+  try {
+    const filters = await apiRequest("/api/filters");
+    if (!filters.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No filters yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = filters.map(f => `
+      <tr>
+        <td><strong>${f.name}</strong>${f.description ? `<div class="text-muted small">${f.description}</div>` : ""}</td>
+        <td><span class="badge text-bg-light border">${f.match_mode}</span></td>
+        <td><code>${(f.include_patterns||[]).join(", ") || "(all)"}</code></td>
+        <td><code>${(f.exclude_patterns||[]).join(", ") || "-"}</code></td>
+        <td>${fmtDate(f.updated_at)}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${f.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-primary" onclick="cloneFilter('${f.id}')" title="Clone"><i class="bi bi-copy"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteFilter('${f.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${e.message}</td></tr>`;
+  }
+}
+loadFilters();
+</script>
+{% endblock %}

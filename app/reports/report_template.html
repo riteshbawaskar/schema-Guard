@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SchemaSentry Report - {{ comparison_id }}</title>
+<style>
+  :root {
+    --primary:#1565C0; --dark:#0D47A1; --light:#E3F2FD; --bg:#F7F9FC;
+    --white:#FFFFFF; --text:#263238; --success:#2E7D32; --warning:#ED6C02; --error:#C62828;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin:0; background:var(--bg); color:var(--text); font-size:14px; }
+  header { background:var(--dark); color:white; padding:16px 24px; position:sticky; top:0; z-index:10; }
+  header h1 { margin:0; font-size:18px; }
+  header .meta { font-size:12px; opacity:.9; margin-top:4px; }
+  .container { padding:20px 24px; max-width:1400px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .card { background:var(--white); border:1px solid #E0E6ED; border-radius:8px; padding:12px 14px; }
+  .card .num { font-size:22px; font-weight:700; color:var(--primary); }
+  .card .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#607D8B; }
+  .status-badge { display:inline-block; padding:4px 12px; border-radius:14px; font-weight:700; font-size:12px; }
+  .status-PASS { background:#E8F5E9; color:var(--success); }
+  .status-FAIL { background:#FFEBEE; color:var(--error); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; margin-left:6px;}
+  .badge-ADDED { background:#E8F5E9; color:var(--success); }
+  .badge-REMOVED { background:#FFEBEE; color:var(--error); }
+  .badge-MODIFIED { background:#FFF3E0; color:var(--warning); }
+  .badge-UNCHANGED { background:#ECEFF1; color:#607D8B; }
+  .sev-CRITICAL { background:#FFEBEE; color:var(--error); }
+  .sev-HIGH { background:#FFF3E0; color:#E65100; }
+  .sev-MEDIUM { background:#FFFDE7; color:#F9A825; }
+  .sev-LOW { background:#E3F2FD; color:var(--primary); }
+  .sev-INFO { background:#ECEFF1; color:#607D8B; }
+  .toolbar { background:var(--white); border:1px solid #E0E6ED; border-radius:8px; padding:12px; margin-bottom:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; position:sticky; top:66px; z-index:9; }
+  .toolbar input[type=text] { padding:7px 10px; border:1px solid #CFD8DC; border-radius:6px; width:240px; }
+  .toolbar label { font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none; }
+  .toolbar button.pill { border:1px solid #CFD8DC; background:white; border-radius:14px; padding:5px 12px; font-size:12px; cursor:pointer; }
+  .toolbar button.pill.active { background:var(--light); border-color:var(--primary); color:var(--primary); font-weight:600;}
+  table.data { width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.data th, table.data td { text-align:left; padding:6px 8px; border-bottom:1px solid #EEF1F4; }
+  table.data th { background:#FAFBFC; position:sticky; top:0; font-size:11px; text-transform:uppercase; color:#607D8B; }
+  .table-card { background:var(--white); border:1px solid #E0E6ED; border-radius:8px; margin-bottom:10px; overflow:hidden; }
+  .table-card .t-head { padding:10px 14px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:var(--white); }
+  .table-card .t-head:hover { background:#FAFBFC; }
+  .table-card .t-body { display:none; padding:0 14px 14px 14px; border-top:1px solid #EEF1F4; }
+  .table-card.open .t-body { display:block; }
+  .t-name { font-weight:600; }
+  .t-counts { font-size:11px; color:#607D8B; }
+  .section-title { font-size:11px; text-transform:uppercase; color:#607D8B; margin:14px 0 6px; letter-spacing:.04em; }
+  .pager { display:flex; gap:8px; align-items:center; justify-content:center; margin:16px 0; }
+  .pager button { border:1px solid #CFD8DC; background:white; border-radius:6px; padding:6px 12px; cursor:pointer; }
+  .pager button:disabled { opacity:.4; cursor:default; }
+  .actions { display:flex; gap:8px; }
+  .actions button, .actions a { border:1px solid var(--primary); color:var(--primary); background:white; border-radius:6px; padding:6px 12px; font-size:12px; cursor:pointer; text-decoration:none; }
+  .actions button:hover, .actions a:hover { background:var(--light); }
+  .empty { text-align:center; color:#78909C; padding:40px; }
+  code { background:#F1F4F7; padding:1px 5px; border-radius:4px; }
+  @media print { .toolbar, .pager, .actions { display:none !important; } .t-body { display:block !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Schema Comparison Report <span class="status-badge status-{{ result.status }}">{{ result.status }}</span></h1>
+  <div class="meta" style="opacity:.75;font-size:11px;margin-bottom:2px;">SchemaSentry - DB Schema Validator</div>
+  <div class="meta">
+    <strong>Source:</strong> {{ result.source_label }}{% if result.source_filter %} (filter: {{ result.source_filter }}){% endif %}
+    &nbsp;→&nbsp;
+    <strong>Destination:</strong> {{ result.destination_label }}{% if result.destination_filter %} (filter: {{ result.destination_filter }}){% endif %}
+    &nbsp;|&nbsp; Generated {{ generated_at }} &nbsp;|&nbsp; Comparison ID: {{ comparison_id }}
+  </div>
+</header>
+<div class="container">
+
+  <div class="cards">
+    <div class="card"><div class="num">{{ result.summary.tables_compared }}</div><div class="lbl">Tables Compared</div></div>
+    <div class="card"><div class="num">{{ result.summary.tables_added }}</div><div class="lbl">Tables Added</div></div>
+    <div class="card"><div class="num">{{ result.summary.tables_removed }}</div><div class="lbl">Tables Removed</div></div>
+    <div class="card"><div class="num">{{ result.summary.tables_modified }}</div><div class="lbl">Tables Modified</div></div>
+    <div class="card"><div class="num">{{ result.summary.tables_unchanged }}</div><div class="lbl">Tables Unchanged</div></div>
+    <div class="card"><div class="num">{{ result.summary.columns_added }}</div><div class="lbl">Columns Added</div></div>
+    <div class="card"><div class="num">{{ result.summary.columns_removed }}</div><div class="lbl">Columns Removed</div></div>
+    <div class="card"><div class="num">{{ result.summary.columns_modified }}</div><div class="lbl">Columns Modified</div></div>
+    <div class="card"><div class="num">{{ result.summary.difference_count }}</div><div class="lbl">Total Differences</div></div>
+    <div class="card"><div class="num" style="color:var(--error)">{{ result.summary.critical_count }}</div><div class="lbl">Critical</div></div>
+    <div class="card"><div class="num" style="color:#E65100">{{ result.summary.high_count }}</div><div class="lbl">High</div></div>
+    <div class="card"><div class="num" style="color:#F9A825">{{ result.summary.medium_count }}</div><div class="lbl">Medium</div></div>
+  </div>
+
+  {% if result.removed_by_filter.source or result.removed_by_filter.destination %}
+  <div class="table-card" style="border-color:#FFE0B2;">
+    <div class="t-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="t-name">Tables excluded by filter</span>
+      <span class="t-counts">source: {{ result.removed_by_filter.source|length }}, destination: {{ result.removed_by_filter.destination|length }}</span>
+    </div>
+    <div class="t-body">
+      <p style="font-size:12px;color:#607D8B;">These tables were excluded because they did not match the applicable filter. Filters are evaluated independently per side and never hide genuine differences between the sides that were compared.</p>
+      <div class="section-title">Excluded from source</div>
+      <code>{{ result.removed_by_filter.source|join(', ') if result.removed_by_filter.source else '(none)' }}</code>
+      <div class="section-title">Excluded from destination</div>
+      <code>{{ result.removed_by_filter.destination|join(', ') if result.removed_by_filter.destination else '(none)' }}</code>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="actions" style="margin-bottom:16px;">
+    <a href="data:application/json;charset=utf-8,{{ result_json_urlencoded }}" download="comparison-{{ comparison_id }}.json">Download JSON</a>
+    <button onclick="window.print()">Print</button>
+    <button onclick="navigator.clipboard.writeText(window.location.href).then(()=>alert('Link copied'))">Copy Share Link</button>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search table or column name...">
+    <label><input type="checkbox" id="diffOnly" checked> Differences only</label>
+    <button class="pill active" data-type="ADDED">Added</button>
+    <button class="pill active" data-type="REMOVED">Removed</button>
+    <button class="pill active" data-type="MODIFIED">Modified</button>
+    <button class="pill" data-type="UNCHANGED">Unchanged</button>
+    <span style="width:1px;background:#E0E6ED;align-self:stretch;"></span>
+    <button class="pill active" data-sev="CRITICAL">Critical</button>
+    <button class="pill active" data-sev="HIGH">High</button>
+    <button class="pill active" data-sev="MEDIUM">Medium</button>
+    <button class="pill active" data-sev="LOW">Low</button>
+    <button class="pill active" data-sev="INFO">Info</button>
+  </div>
+
+  <div id="tableList"></div>
+  <div class="pager">
+    <button id="prevPage">&larr; Prev</button>
+    <span id="pageInfo"></span>
+    <button id="nextPage">Next &rarr;</button>
+  </div>
+  <div class="empty" id="emptyState" style="display:none;">No tables match the current filters.</div>
+</div>
+
+<script id="report-data" type="application/json">{{ tables_json | safe }}</script>
+<script>
+const ALL_TABLES = JSON.parse(document.getElementById('report-data').textContent);
+const PAGE_SIZE = 25;
+let currentPage = 0;
+let activeTypes = new Set(['ADDED','REMOVED','MODIFIED']);
+let activeSevs = new Set(['CRITICAL','HIGH','MEDIUM','LOW','INFO']);
+let diffOnly = true;
+let searchTerm = '';
+
+const CHILD_COLLECTIONS = ['column_diffs','foreign_key_diffs','unique_constraint_diffs','check_constraint_diffs','index_diffs'];
+
+function rowMatchesActiveFilters(d) {
+  return activeTypes.has(d.diff_type) && activeSevs.has(d.severity);
+}
+
+// A row that actually represents a change (as opposed to an UNCHANGED
+// bookkeeping entry kept around for completeness).
+function isRealDiff(d) { return d.diff_type !== 'UNCHANGED'; }
+
+function tableHasAnyRealDifference(t) {
+  if (t.diff_type !== 'UNCHANGED') return true;
+  if (t.primary_key_diff && isRealDiff(t.primary_key_diff)) return true;
+  for (const key of CHILD_COLLECTIONS) {
+    if ((t[key] || []).some(isRealDiff)) return true;
+  }
+  return false;
+}
+
+// Children (across all collections + PK) that pass the current type/severity pills.
+function visibleChildren(t) {
+  const result = {};
+  for (const key of CHILD_COLLECTIONS) {
+    result[key] = (t[key] || []).filter(isRealDiff).filter(rowMatchesActiveFilters);
+  }
+  result.primary_key_diff = (t.primary_key_diff && isRealDiff(t.primary_key_diff) && rowMatchesActiveFilters(t.primary_key_diff))
+    ? t.primary_key_diff : null;
+  return result;
+}
+
+function anyVisibleChild(t) {
+  const v = visibleChildren(t);
+  return v.primary_key_diff !== null || CHILD_COLLECTIONS.some(key => v[key].length > 0);
+}
+
+function tableMatchesSearch(t, term) {
+  if (!term) return true;
+  term = term.toLowerCase();
+  if (t.table_name.toLowerCase().includes(term)) return true;
+  return CHILD_COLLECTIONS.some(key => (t[key] || []).some(d => d.name.toLowerCase().includes(term)));
+}
+
+function tableIsVisible(t) {
+  if (!tableMatchesSearch(t, searchTerm)) return false;
+
+  const hasRealDiff = tableHasAnyRealDifference(t);
+  if (diffOnly && !hasRealDiff) return false;
+
+  if (!hasRealDiff) return true; // fully unchanged table, diffOnly is off - show plainly
+
+  // Whole-table ADDED/REMOVED has no children - it must itself pass the pills.
+  if (t.diff_type === 'ADDED' || t.diff_type === 'REMOVED') {
+    return activeTypes.has(t.diff_type) && activeSevs.has(t.severity);
+  }
+  // MODIFIED (or an UNCHANGED table with real child diffs, which shouldn't
+  // normally happen but is handled defensively): visible if at least one
+  // child row currently passes the active type/severity pills.
+  return anyVisibleChild(t);
+}
+
+function getFiltered() {
+  return ALL_TABLES.filter(tableIsVisible);
+}
+
+function badge(type) { return `<span class="badge badge-${type}">${type}</span>`; }
+function sevBadge(sev) { return `<span class="badge sev-${sev}">${sev}</span>`; }
+
+function renderDiffRows(items, kind) {
+  if (!items.length) return '';
+  let rows = items.map(d => {
+    let detail = '';
+    if (d.field_diffs && d.field_diffs.length) {
+      const visibleFieldDiffs = d.field_diffs.filter(fd => activeSevs.has(fd.severity));
+      const toShow = visibleFieldDiffs.length ? visibleFieldDiffs : d.field_diffs;
+      detail = toShow.map(fd => `${fd.field}: <code>${fd.source_value}</code> &rarr; <code>${fd.destination_value}</code> ${sevBadge(fd.severity)}`).join('<br>');
+    } else if (d.diff_type === 'ADDED') {
+      detail = 'Added in destination';
+    } else if (d.diff_type === 'REMOVED') {
+      detail = 'Present only in source';
+    } else {
+      detail = JSON.stringify(d.destination_value || d.source_value || {});
+    }
+    return `<tr><td>${d.name}</td><td>${badge(d.diff_type)}</td><td>${sevBadge(d.severity)}</td><td>${detail}</td></tr>`;
+  }).join('');
+  return `<div class="section-title">${kind}</div><table class="data"><thead><tr><th>Name</th><th>Change</th><th>Severity</th><th>Detail</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderTable(t) {
+  const visible = visibleChildren(t);
+  const totalVisibleCount = CHILD_COLLECTIONS.reduce((sum, key) => sum + visible[key].length, 0) + (visible.primary_key_diff ? 1 : 0);
+  const counts = `${totalVisibleCount} change(s) shown`;
+  let body = '';
+  body += renderDiffRows(visible.column_diffs, 'Columns');
+  if (visible.primary_key_diff) body += renderDiffRows([visible.primary_key_diff], 'Primary Key');
+  body += renderDiffRows(visible.foreign_key_diffs, 'Foreign Keys');
+  body += renderDiffRows(visible.unique_constraint_diffs, 'Unique Constraints');
+  body += renderDiffRows(visible.check_constraint_diffs, 'Check Constraints');
+  body += renderDiffRows(visible.index_diffs, 'Indexes');
+  if (!body) {
+    body = tableHasAnyRealDifference(t)
+      ? '<p style="color:#78909C;font-size:12px;">This table has changes, but none match the current type/severity filters.</p>'
+      : '<p style="color:#78909C;font-size:12px;">No changes.</p>';
+  }
+  return `<div class="table-card">
+    <div class="t-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="t-name">${t.table_name} ${badge(t.diff_type)} ${sevBadge(t.severity)}</span>
+      <span class="t-counts">${counts}</span>
+    </div>
+    <div class="t-body">${body}</div>
+  </div>`;
+}
+
+function render() {
+  const filtered = getFiltered();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  currentPage = Math.min(currentPage, totalPages - 1);
+  const start = currentPage * PAGE_SIZE;
+  const pageItems = filtered.slice(start, start + PAGE_SIZE);
+  document.getElementById('tableList').innerHTML = pageItems.map(renderTable).join('');
+  document.getElementById('pageInfo').textContent = `Page ${currentPage+1} of ${totalPages} (${filtered.length} tables)`;
+  document.getElementById('prevPage').disabled = currentPage <= 0;
+  document.getElementById('nextPage').disabled = currentPage >= totalPages - 1;
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+}
+
+document.getElementById('search').addEventListener('input', e => { searchTerm = e.target.value; currentPage = 0; render(); });
+document.getElementById('diffOnly').addEventListener('change', e => { diffOnly = e.target.checked; currentPage = 0; render(); });
+document.querySelectorAll('.pill[data-type]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.type;
+    btn.classList.toggle('active');
+    if (btn.classList.contains('active')) activeTypes.add(t); else activeTypes.delete(t);
+    currentPage = 0; render();
+  });
+});
+document.querySelectorAll('.pill[data-sev]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const s = btn.dataset.sev;
+    btn.classList.toggle('active');
+    if (btn.classList.contains('active')) activeSevs.add(s); else activeSevs.delete(s);
+    currentPage = 0; render();
+  });
+});
+document.getElementById('prevPage').addEventListener('click', () => { currentPage--; render(); });
+document.getElementById('nextPage').addEventListener('click', () => { currentPage++; render(); });
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+data/app.db
+data/schemas/*
+data/reports/*
+data/uploads/*
+!data/schemas/.gitkeep
+!data/reports/.gitkeep
+!data/uploads/.gitkeep
+test_data/*.db
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+venv/
+.venv/

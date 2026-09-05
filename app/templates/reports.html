@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="page-header"><h2><i class="bi bi-file-earmark-bar-graph"></i> Reports</h2></div>
+
+<div class="section-card">
+  <div class="table-responsive">
+    <table class="table table-dbv align-middle">
+      <thead><tr><th>Comparison</th><th>Source → Destination</th><th>Status</th><th>Differences</th><th>Size</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+      <tbody id="reportTable"><tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadReports() {
+  const tbody = document.getElementById("reportTable");
+  try {
+    const [reports, comparisons] = await Promise.all([
+      apiRequest("/api/reports?limit=200"),
+      apiRequest("/api/compare?limit=1000"),
+    ]);
+    const compById = Object.fromEntries(comparisons.map(c => [c.id, c]));
+    if (!reports.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No reports yet. <a href="/compare">Run a comparison</a>.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = reports.map(r => {
+      const c = compById[r.comparison_id] || {};
+      const src = c.source_label || c.source_reference || c.source_type || "-";
+      const dst = c.destination_label || c.destination_reference || c.destination_type || "-";
+      return `
+      <tr>
+        <td><code>${r.comparison_id.slice(0,8)}</code></td>
+        <td>${src} &rarr; ${dst}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${c.difference_count ?? "-"}</td>
+        <td>${((r.file_size||0)/1024).toFixed(1)} KB</td>
+        <td>${fmtDate(r.created_at)}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-primary" href="/reports/view/${r.comparison_id}" target="_blank" title="Open"><i class="bi bi-box-arrow-up-right"></i></a>
+          <a class="btn btn-sm btn-outline-primary" href="/api/reports/${r.id}/html" download="report-${r.comparison_id.slice(0,8)}.html" title="Download"><i class="bi bi-download"></i></a>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${r.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${e.message}</td></tr>`;
+  }
+}
+
+async function deleteReport(reportId) {
+  if (!confirm("Delete this report and its comparison history entry?")) return;
+  try {
+    await apiRequest(`/api/reports/${reportId}`, { method: "DELETE" });
+    showToast("Report deleted", "success");
+    loadReports();
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+loadReports();
+</script>
+{% endblock %}

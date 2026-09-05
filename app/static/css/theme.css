@@ -1,0 +1,43 @@
+:root {
+  --primary: #1565C0;
+  --dark: #0D47A1;
+  --light: #E3F2FD;
+  --bg: #F7F9FC;
+  --white: #FFFFFF;
+  --text: #263238;
+  --success: #2E7D32;
+  --warning: #ED6C02;
+  --error: #C62828;
+}
+body { background: var(--bg); color: var(--text); font-size: 14.5px; }
+.navbar-dbv { background: var(--dark) !important; }
+.navbar-dbv .nav-link { color: rgba(255,255,255,.85) !important; font-weight: 500; }
+.navbar-dbv .nav-link.active, .navbar-dbv .nav-link:hover { color: #fff !important; }
+.navbar-dbv .navbar-brand { color: #fff !important; font-weight: 700; }
+.btn-primary { background-color: var(--primary); border-color: var(--primary); }
+.btn-primary:hover { background-color: var(--dark); border-color: var(--dark); }
+.btn-outline-primary { color: var(--primary); border-color: var(--primary); }
+.btn-outline-primary:hover { background-color: var(--primary); border-color: var(--primary); }
+.card-dbv { background: var(--white); border: 1px solid #E0E6ED; border-radius: 10px; }
+.stat-card { background: var(--white); border: 1px solid #E0E6ED; border-radius: 10px; padding: 16px 18px; }
+.stat-card .stat-num { font-size: 26px; font-weight: 700; color: var(--primary); }
+.stat-card .stat-lbl { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: #607D8B; }
+.table-dbv thead th { background: var(--light); color: var(--dark); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; border-bottom: none; }
+.table-dbv td, .table-dbv th { vertical-align: middle; }
+.badge-status-SUCCESS, .badge-status-PASS { background: #E8F5E9; color: var(--success); }
+.badge-status-FAILURE, .badge-status-FAIL, .badge-status-ERROR { background: #FFEBEE; color: var(--error); }
+.badge-status-PENDING, .badge-status-RUNNING { background: #FFF3E0; color: var(--warning); }
+.page-header { padding: 22px 0 10px; }
+.page-header h2 { font-weight: 700; color: var(--dark); }
+.section-card { background: var(--white); border: 1px solid #E0E6ED; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+a { color: var(--primary); }
+.badge-severity-CRITICAL { background:#FFEBEE; color:#C62828; }
+.badge-severity-HIGH { background:#FFF3E0; color:#E65100; }
+.badge-severity-MEDIUM { background:#FFFDE7; color:#F9A825; }
+.badge-severity-LOW { background:#E3F2FD; color:#1565C0; }
+.badge-severity-INFO { background:#ECEFF1; color:#607D8B; }
+.badge-diff-ADDED { background:#E8F5E9; color:#2E7D32; }
+.badge-diff-REMOVED { background:#FFEBEE; color:#C62828; }
+.badge-diff-MODIFIED { background:#FFF3E0; color:#ED6C02; }
+.badge-diff-UNCHANGED { background:#ECEFF1; color:#607D8B; }
+.masked-secret { letter-spacing: 2px; color: #90A4AE; }

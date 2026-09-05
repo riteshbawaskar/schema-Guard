@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Schema Extraction{% endblock %}
+{% block content %}
+<div class="page-header"><h2><i class="bi bi-download"></i> Schema Extraction</h2></div>
+
+<div class="section-card">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Database Configuration</label>
+      <select class="form-select" id="extConfig" onchange="onConfigChange()"></select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Database</label>
+      <select class="form-select" id="extDatabase" onchange="onDatabaseChange()"></select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Schema</label>
+      <select class="form-select" id="extSchema" onchange="onSchemaChange()"></select>
+    </div>
+  </div>
+  <div class="row g-3 mt-1">
+    <div class="col-md-6">
+      <label class="form-label">Table Filter (optional)</label>
+      <select class="form-select" id="extFilter" onchange="loadPreview()">
+        <option value="">(no filter - all tables)</option>
+      </select>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <button class="btn btn-outline-primary" onclick="loadPreview()"><i class="bi bi-eye"></i> Preview Tables</button>
+    </div>
+  </div>
+</div>
+
+<div class="section-card" id="previewCard" style="display:none;">
+  <h6>Table Preview <span id="previewCount" class="badge text-bg-light border"></span></h6>
+  <div class="row">
+    <div class="col-md-6">
+      <div class="text-muted small mb-1">Matched (will be extracted)</div>
+      <div class="border rounded p-2" style="max-height:200px;overflow:auto;font-size:12.5px;" id="previewMatched"></div>
+    </div>
+    <div class="col-md-6">
+      <div class="text-muted small mb-1">Excluded by filter</div>
+      <div class="border rounded p-2" style="max-height:200px;overflow:auto;font-size:12.5px;" id="previewExcluded"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-card">
+  <h6>Extract & Save</h6>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Version Name</label>
+      <input class="form-control" id="versionName" placeholder="e.g. QA Snowflake - CUSTOMER schema">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Description (optional)</label>
+      <input class="form-control" id="versionDescription">
+    </div>
+  </div>
+  <button class="btn btn-primary mt-3" onclick="extractAndSave()"><i class="bi bi-cloud-download"></i> Extract Schema</button>
+  <div id="extractStatus" class="mt-3"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let CONFIGS = [];
+
+async function loadConfigsForExtraction() {
+  CONFIGS = await apiRequest("/api/database-configurations");
+  const sel = document.getElementById("extConfig");
+  sel.innerHTML = `<option value="">Select a configuration...</option>` +
+    CONFIGS.filter(c => c.enabled).map(c => `<option value="${c.id}">${c.name} (${c.database_type})</option>`).join("");
+
+  const filters = await apiRequest("/api/filters");
+  const filterSel = document.getElementById("extFilter");
+  filterSel.innerHTML = `<option value="">(no filter - all tables)</option>` +
+    filters.map(f => `<option value="${f.id}">${f.name}</option>`).join("");
+}
+
+async function onConfigChange() {
+  const configId = document.getElementById("extConfig").value;
+  const dbSel = document.getElementById("extDatabase");
+  const schemaSel = document.getElementById("extSchema");
+  dbSel.innerHTML = ""; schemaSel.innerHTML = "";
+  document.getElementById("previewCard").style.display = "none";
+  if (!configId) return;
+  try {
+    const { databases } = await apiRequest(`/api/database-configurations/${configId}/databases`);
+    dbSel.innerHTML = databases.map(d => `<option value="${d}">${d}</option>`).join("");
+    await onDatabaseChange();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function onDatabaseChange() {
+  const configId = document.getElementById("extConfig").value;
+  const database = document.getElementById("extDatabase").value;
+  const schemaSel = document.getElementById("extSchema");
+  if (!configId) return;
+  try {
+    const { schemas } = await apiRequest(`/api/database-configurations/${configId}/schemas?database=${encodeURIComponent(database||"")}`);
+    schemaSel.innerHTML = schemas.map(s => `<option value="${s}">${s}</option>`).join("");
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+function onSchemaChange() { document.getElementById("previewCard").style.display = "none"; }
+
+async function loadPreview() {
+  const configId = document.getElementById("extConfig").value;
+  if (!configId) { showToast("Select a database configuration first", "warning"); return; }
+  const database = document.getElementById("extDatabase").value;
+  const schema_name = document.getElementById("extSchema").value;
+  const filter_id = document.getElementById("extFilter").value || null;
+  try {
+    const preview = await apiRequest("/api/extraction/preview", {
+      method: "POST", body: { database_configuration_id: configId, database, schema_name, filter_id }
+    });
+    document.getElementById("previewCard").style.display = "block";
+    document.getElementById("previewCount").textContent = `${preview.matched_count} / ${preview.total_tables} tables`;
+    document.getElementById("previewMatched").innerHTML = preview.matched_tables.map(t => `<div>${t}</div>`).join("") || "<span class='text-muted'>(none)</span>";
+    document.getElementById("previewExcluded").innerHTML = preview.excluded_tables.map(t => `<div>${t}</div>`).join("") || "<span class='text-muted'>(none)</span>";
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function extractAndSave() {
+  const configId = document.getElementById("extConfig").value;
+  const versionName = document.getElementById("versionName").value;
+  if (!configId || !versionName) { showToast("Configuration and version name are required", "warning"); return; }
+  const statusDiv = document.getElementById("extractStatus");
+  statusDiv.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Extracting...</div>`;
+  try {
+    const payload = {
+      database_configuration_id: configId,
+      database: document.getElementById("extDatabase").value,
+      schema_name: document.getElementById("extSchema").value,
+      filter_id: document.getElementById("extFilter").value || null,
+      version_name: versionName,
+      description: document.getElementById("versionDescription").value || null,
+      save: true,
+    };
+    const result = await apiRequest("/api/schema/extract", { method: "POST", body: payload });
+    statusDiv.innerHTML = `<div class="alert alert-success py-2 mb-0">
+      Extracted ${result.version.table_count} tables / ${result.version.column_count} columns.
+      Saved as version ${result.version.version}. <a href="/schema-versions">View versions</a>
+    </div>`;
+    showToast("Schema extracted and saved", "success");
+  } catch (e) {
+    statusDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">${e.message}</div>`;
+  }
+}
+
+loadConfigsForExtraction();
+</script>
+{% endblock %}

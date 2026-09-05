@@ -1,0 +1,63 @@
+# DB Schema Validator - comparison configuration
+# Severity levels: CRITICAL, HIGH, MEDIUM, LOW, INFO
+
+comparison:
+  fail_on:
+    - CRITICAL
+    - HIGH
+
+datatype_normalization:
+  default_mode: compatible   # strict | compatible
+  # compatible_map overrides/extends the built-in mapping in app/schema/normalization.py
+  # compatible_map:
+  #   NUMERIC:
+  #     - database_type: postgresql
+  #       native_prefix: NUMERIC
+
+severity_rules:
+  table:
+    ADDED: MEDIUM
+    REMOVED: CRITICAL
+    MODIFIED: INFO
+  column:
+    ADDED: MEDIUM
+    REMOVED: CRITICAL
+    MODIFIED: INFO
+  datatype:
+    MODIFIED: CRITICAL
+  length:
+    MODIFIED: HIGH
+  precision:
+    MODIFIED: HIGH
+  scale:
+    MODIFIED: HIGH
+  nullable:
+    MODIFIED: HIGH
+  default:
+    MODIFIED: MEDIUM
+  identity:
+    MODIFIED: MEDIUM
+  position:
+    MODIFIED: LOW
+  primary_key:
+    ADDED: HIGH
+    REMOVED: CRITICAL
+    MODIFIED: CRITICAL
+  foreign_key:
+    ADDED: MEDIUM
+    REMOVED: HIGH
+    MODIFIED: HIGH
+  unique_constraint:
+    ADDED: MEDIUM
+    REMOVED: HIGH
+    MODIFIED: HIGH
+  check_constraint:
+    ADDED: LOW
+    REMOVED: MEDIUM
+    MODIFIED: MEDIUM
+  index:
+    ADDED: LOW
+    REMOVED: MEDIUM
+    MODIFIED: MEDIUM
+  comment:
+    MODIFIED: INFO

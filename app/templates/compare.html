@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Compare{% endblock %}
+{% block content %}
+<div class="page-header"><h2><i class="bi bi-arrow-left-right"></i> Compare Schemas</h2></div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="section-card">
+      <h6 class="text-primary">Source</h6>
+      <div id="sourceSide"></div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="section-card">
+      <h6 class="text-primary">Destination</h6>
+      <div id="destinationSide"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-card">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label d-block">Filter Mode</label>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="sameFilter" checked onchange="toggleSameFilter()">
+        <label class="form-check-label" for="sameFilter">Use same filter for both sides</label>
+      </div>
+    </div>
+    <div class="col-md-4" id="destFilterWrap" style="display:none;">
+      <label class="form-label">Destination Filter</label>
+      <select class="form-select" id="destinationFilterId"><option value="">(no filter)</option></select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Normalization Mode</label>
+      <select class="form-select" id="normalizationMode">
+        <option value="compatible">Compatible</option>
+        <option value="strict">Strict</option>
+      </select>
+    </div>
+  </div>
+  <div class="alert alert-warning mt-3 py-2" id="filterWarning" style="display:none;">
+    Different filters are being used for source and destination. Filters are evaluated independently per side and will never hide a genuine difference - but comparison semantics differ between the two sides, so review results carefully.
+  </div>
+  <button class="btn btn-primary mt-2" onclick="runComparison()"><i class="bi bi-play-fill"></i> Run Comparison</button>
+</div>
+
+<div id="compareResult"></div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/compare.js"></script>
+{% endblock %}

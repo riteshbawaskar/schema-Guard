@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}SchemaSentry - DB Schema Validator{% endblock %}</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="/static/css/theme.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+{% block head %}{% endblock %}
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dbv">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="/"><i class="bi bi-diagram-3-fill me-1"></i> SchemaGuard <span class="fw-normal opacity-75" style="font-size:.7em;">DB Schema Validator</span></a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link {% if active=='dashboard' %}active{% endif %}" href="/">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link {% if active=='configs' %}active{% endif %}" href="/database-configurations">Database Configurations</a></li>
+        <li class="nav-item"><a class="nav-link {% if active=='filters' %}active{% endif %}" href="/table-filters">Table Filters</a></li>
+        <li class="nav-item"><a class="nav-link {% if active=='extraction' %}active{% endif %}" href="/schema-extraction">Schema Extraction</a></li>
+        <li class="nav-item"><a class="nav-link {% if active=='versions' %}active{% endif %}" href="/schema-versions">Schema Versions</a></li>
+        <li class="nav-item"><a class="nav-link {% if active=='compare' %}active{% endif %}" href="/compare">Compare</a></li>
+        <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="/reports">Reports</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container-fluid px-4">
+{% block content %}{% endblock %}
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

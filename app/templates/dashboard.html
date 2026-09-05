@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - SchemaGuard{% endblock %}
+{% block content %}
+<div class="page-header"><h2><i class="bi bi-speedometer2"></i> Dashboard</h2></div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statConfigs">-</div><div class="stat-lbl">Database Configurations</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statFilters">-</div><div class="stat-lbl">Saved Filters</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statVersions">-</div><div class="stat-lbl">Schema Versions</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statComparisons">-</div><div class="stat-lbl">Total Comparisons</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statPassed" style="color:#2E7D32">-</div><div class="stat-lbl">Passed</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statFailed" style="color:#C62828">-</div><div class="stat-lbl">Failed</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statTables">-</div><div class="stat-lbl">Tables Compared</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat-card"><div class="stat-num" id="statDiffs">-</div><div class="stat-lbl">Differences Found</div></div></div>
+</div>
+
+<div class="section-card">
+  <h5 class="mb-3">Recent Comparisons</h5>
+  <div class="table-responsive">
+    <table class="table table-dbv align-middle">
+      <thead><tr><th>ID</th><th>Source</th><th>Destination</th><th>Date</th><th>Status</th><th>Differences</th><th>Report</th></tr></thead>
+      <tbody id="recentComparisons"><tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadDashboard() {
+  try {
+    const comparisons = await apiRequest("/api/compare?limit=10");
+    const configs = await apiRequest("/api/database-configurations");
+    const filters = await apiRequest("/api/filters");
+    const versions = await apiRequest("/api/schema/versions");
+
+    document.getElementById("statConfigs").textContent = configs.length;
+    document.getElementById("statFilters").textContent = filters.length;
+    document.getElementById("statVersions").textContent = versions.length;
+
+    const all = await apiRequest("/api/compare?limit=1000");
+    document.getElementById("statComparisons").textContent = all.length;
+    document.getElementById("statPassed").textContent = all.filter(c => c.status === "PASS").length;
+    document.getElementById("statFailed").textContent = all.filter(c => c.status === "FAIL" || c.status === "ERROR").length;
+    document.getElementById("statTables").textContent = all.reduce((s,c) => s + (c.table_count||0), 0);
+    document.getElementById("statDiffs").textContent = all.reduce((s,c) => s + (c.difference_count||0), 0);
+
+    const tbody = document.getElementById("recentComparisons");
+    if (!comparisons.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No comparisons yet. <a href="/compare">Run one</a>.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = comparisons.map(c => `
+      <tr>
+        <td><code>${c.id.slice(0,8)}</code></td>
+        <td>${c.source_label || c.source_reference || c.source_type}</td>
+        <td>${c.destination_label || c.destination_reference || c.destination_type}</td>
+        <td>${fmtDate(c.created_at)}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${c.difference_count}</td>
+        <td>${c.report_path ? `<a href="/reports/view/${c.id}" target="_blank">Open</a>` : "-"}</td>
+      </tr>`).join("");
+  } catch (e) {
+    showToast("Failed to load dashboard: " + e.message, "danger");
+  }
+}
+loadDashboard();
+</script>
+{% endblock %}

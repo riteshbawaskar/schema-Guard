@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Database Configurations{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h2><i class="bi bi-hdd-network"></i> Database Configurations</h2>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal" onclick="openCreateModal()">
+    <i class="bi bi-plus-lg"></i> Add Configuration
+  </button>
+</div>
+
+<div class="section-card">
+  <div class="table-responsive">
+    <table class="table table-dbv align-middle">
+      <thead><tr><th>Name</th><th>Type</th><th>Enabled</th><th>Default</th><th>Last Test</th><th>Updated</th><th class="text-end">Actions</th></tr></thead>
+      <tbody id="configTable"><tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="configModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="configModalTitle">Add Database Configuration</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="configForm">
+          <input type="hidden" id="cfgId">
+          <div class="mb-3">
+            <label class="form-label">Configuration Name</label>
+            <input class="form-control" id="cfgName" placeholder="e.g. QA Snowflake" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Database Type</label>
+            <select class="form-select" id="cfgType" onchange="renderTypeFields()">
+              <option value="snowflake">Snowflake</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="oracle">Oracle</option>
+              <option value="sqlite">SQLite</option>
+            </select>
+          </div>
+          <div id="typeFields"></div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="cfgEnabled" checked>
+            <label class="form-check-label" for="cfgEnabled">Enabled</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="cfgDefault">
+            <label class="form-check-label" for="cfgDefault">Set as default</label>
+          </div>
+        </form>
+        <div id="testResult" class="mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-primary" onclick="testFromModal()"><i class="bi bi-plug"></i> Test Connection</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="saveConfig()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const FIELD_DEFS = {
+  snowflake: [["account","Account"],["username","Username"],["pat","Programmatic Access Token (PAT)","password"],["warehouse","Warehouse"],["database","Database"],["schema","Schema"],["role","Role (optional)"]],
+  postgresql: [["host","Host"],["port","Port","number","5432"],["database","Database"],["schema","Schema (optional, default public)"],["username","Username"],["password","Password","password"],["ssl_mode","SSL Mode (optional, e.g. prefer)"]],
+  oracle: [["host","Host"],["port","Port","number","1521"],["service_name","Service Name"],["schema","Schema (optional)"],["username","Username"],["password","Password","password"]],
+  sqlite: [["database_file","Database File Path"]],
+};
+
+function renderTypeFields(existingConfig) {
+  const type = document.getElementById("cfgType").value;
+  const container = document.getElementById("typeFields");
+  const fields = FIELD_DEFS[type] || [];
+  container.innerHTML = fields.map(([key, label, inputType, placeholder]) => {
+    const val = existingConfig ? (existingConfig[key] ?? "") : "";
+    return `<div class="mb-3">
+      <label class="form-label">${label}</label>
+      <input class="form-control" id="fld_${key}" type="${inputType || 'text'}" placeholder="${placeholder || ''}" value="${val === '********' ? '' : val}" ${val === '********' ? 'data-masked="true"' : ''}>
+      ${val === '********' ? '<div class="form-text">Leave blank to keep the existing secret.</div>' : ''}
+    </div>`;
+  }).join("");
+}
+
+function openCreateModal() {
+  document.getElementById("configModalTitle").textContent = "Add Database Configuration";
+  document.getElementById("cfgId").value = "";
+  document.getElementById("cfgName").value = "";
+  document.getElementById("cfgType").value = "sqlite";
+  document.getElementById("cfgType").disabled = false;
+  document.getElementById("cfgEnabled").checked = true;
+  document.getElementById("cfgDefault").checked = false;
+  document.getElementById("testResult").innerHTML = "";
+  renderTypeFields();
+}
+
+async function openEditModal(id) {
+  const cfg = await apiRequest(`/api/database-configurations/${id}`);
+  document.getElementById("configModalTitle").textContent = "Edit Database Configuration";
+  document.getElementById("cfgId").value = cfg.id;
+  document.getElementById("cfgName").value = cfg.name;
+  document.getElementById("cfgType").value = cfg.database_type;
+  document.getElementById("cfgType").disabled = true;
+  document.getElementById("cfgEnabled").checked = cfg.enabled;
+  document.getElementById("cfgDefault").checked = cfg.is_default;
+  document.getElementById("testResult").innerHTML = "";
+  renderTypeFields(cfg.configuration);
+  new bootstrap.Modal(document.getElementById("configModal")).show();
+}
+
+function collectConfigPayload() {
+  const type = document.getElementById("cfgType").value;
+  const fields = FIELD_DEFS[type] || [];
+  const configuration = {};
+  fields.forEach(([key]) => {
+    const el = document.getElementById(`fld_${key}`);
+    if (el) {
+      if (el.dataset.masked === "true" && el.value === "") {
+        configuration[key] = "********";
+      } else if (el.value !== "") {
+        configuration[key] = el.type === "number" ? Number(el.value) : el.value;
+      }
+    }
+  });
+  return {
+    name: document.getElementById("cfgName").value,
+    database_type: type,
+    configuration,
+    enabled: document.getElementById("cfgEnabled").checked,
+    is_default: document.getElementById("cfgDefault").checked,
+  };
+}
+
+async function saveConfig() {
+  const id = document.getElementById("cfgId").value;
+  const payload = collectConfigPayload();
+  try {
+    if (id) {
+      await apiRequest(`/api/database-configurations/${id}`, { method: "PUT", body: payload });
+      showToast("Configuration updated", "success");
+    } else {
+      await apiRequest(`/api/database-configurations`, { method: "POST", body: payload });
+      showToast("Configuration created", "success");
+    }
+    bootstrap.Modal.getInstance(document.getElementById("configModal")).hide();
+    loadConfigs();
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+
+async function testFromModal() {
+  const resultDiv = document.getElementById("testResult");
+  const id = document.getElementById("cfgId").value;
+  resultDiv.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Testing...</div>`;
+  try {
+    const payload = {
+      database_type: document.getElementById("cfgType").value,
+      configuration: collectConfigPayload().configuration,
+      existing_config_id: id || null,
+    };
+    const result = await apiRequest(`/api/database-configurations/test`, { method: "POST", body: payload });
+    resultDiv.innerHTML = `<div class="alert ${result.success ? 'alert-success' : 'alert-danger'} py-2 mb-0">${result.message}</div>`;
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">${e.message}</div>`;
+  }
+}
+
+async function testConfig(id) {
+  try {
+    const result = await apiRequest(`/api/database-configurations/${id}/test`, { method: "POST" });
+    showToast(result.message, result.success ? "success" : "danger");
+    loadConfigs();
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+
+async function toggleEnabled(id, enabled) {
+  await apiRequest(`/api/database-configurations/${id}`, { method: "PUT", body: { enabled } });
+  loadConfigs();
+}
+
+async function cloneConfig(id) {
+  const newName = prompt("New configuration name:");
+  if (!newName) return;
+  try {
+    await apiRequest(`/api/database-configurations/${id}/clone`, { method: "POST", body: { new_name: newName } });
+    showToast("Cloned", "success");
+    loadConfigs();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function deleteConfig(id) {
+  if (!confirm("Delete this database configuration?")) return;
+  try {
+    await apiRequest(`/api/database-configurations/${id}`, { method: "DELETE" });
+    showToast("Deleted", "success");
+    loadConfigs();
+  } catch (e) { showToast(e.message, "danger"); }
+}
+
+async function setDefault(id) {
+  await apiRequest(`/api/database-configurations/${id}`, { method: "PUT", body: { is_default: true } });
+  loadConfigs();
+}
+
+async function loadConfigs() {
+  const tbody = document.getElementById("configTable");
+  try {
+    const configs = await apiRequest("/api/database-configurations");
+    if (!configs.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No configurations yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = configs.map(c => `
+      <tr>
+        <td><strong>${c.name}</strong></td>
+        <td><span class="badge text-bg-light border">${c.database_type}</span></td>
+        <td>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" ${c.enabled ? "checked" : ""} onchange="toggleEnabled('${c.id}', this.checked)">
+          </div>
+        </td>
+        <td>${c.is_default ? '<i class="bi bi-star-fill text-warning"></i>' : `<button class="btn btn-sm btn-link p-0" onclick="setDefault('${c.id}')">Set default</button>`}</td>
+        <td>${c.last_test_status ? statusBadge(c.last_test_status) : '<span class="text-muted">Not tested</span>'}</td>
+        <td>${fmtDate(c.updated_at)}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary" onclick="testConfig('${c.id}')" title="Test"><i class="bi bi-plug"></i></button>
+          <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${c.id}')" title="Edit"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-primary" onclick="cloneConfig('${c.id}')" title="Clone"><i class="bi bi-copy"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteConfig('${c.id}')" title="Delete"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${e.message}</td></tr>`;
+  }
+}
+loadConfigs();
+</script>
+{% endblock %}
