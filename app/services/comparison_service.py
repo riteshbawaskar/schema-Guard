@@ -79,7 +79,7 @@ def _initial_job_label(
         return config.name
     if source_type == "schema_version":
         version = schema_service.get_version_or_404(db, reference)
-        return version.schema_name or version.name
+        return version.name
     if source_type == "uploaded_json":
         from app.storage.schema_storage import load_schema_from_path
         raw = load_schema_from_path(reference)
@@ -109,7 +109,7 @@ def resolve_side(
     elif source_type == "schema_version":
         version = schema_service.get_version_or_404(db, reference)
         raw = schema_service.load_canonical_schema(version)
-        label = raw.metadata.schema_name or version.schema_name or version.name
+        label = version.name
         filtered, removed = _filter_canonical_schema(raw, filter_id, db)
         return filtered, removed, label
     elif source_type == "uploaded_json":

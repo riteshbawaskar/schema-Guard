@@ -75,6 +75,8 @@ def test_schema_version_to_schema_version_comparison(tmp_app_env, test_databases
         )
         assert result.summary.tables_compared == src_schema.table_count() or result.summary.tables_compared >= 1
         assert comparison_row.status in ("PASS", "FAIL")
+        assert result.source_label == "V1"
+        assert result.destination_label == "V2"
 
 
 def test_comparison_labels_are_persisted_and_human_readable(tmp_app_env, test_databases):
