@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,6 +30,12 @@ class CompareRequest(BaseModel):
 
 
 def _serialize_comparison(obj) -> dict:
+    elapsed_seconds = None
+    if obj.status == "RUNNING" and obj.created_at:
+        created_at = obj.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        elapsed_seconds = max(0.0, (datetime.now(timezone.utc) - created_at).total_seconds())
     return {
         "id": obj.id, "source_type": obj.source_type, "source_reference": obj.source_reference,
         "destination_type": obj.destination_type, "destination_reference": obj.destination_reference,
@@ -38,6 +45,7 @@ def _serialize_comparison(obj) -> dict:
         "high_count": obj.high_count, "medium_count": obj.medium_count, "low_count": obj.low_count,
         "info_count": obj.info_count, "report_path": obj.report_path, "error_message": obj.error_message,
         "created_at": obj.created_at, "duration": obj.duration,
+        "elapsed_seconds": elapsed_seconds,
     }
 
 

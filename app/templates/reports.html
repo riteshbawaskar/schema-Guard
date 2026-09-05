@@ -38,7 +38,7 @@ async function loadReports() {
         <td>${statusBadge(displayStatus(c))}</td>
         <td class="${c.error_message ? "text-danger" : "text-muted"}">${escapeHtml(description(c))}</td>
         <td>${c.difference_count ?? "-"}</td>
-        <td class="compare-time" data-created="${c.created_at}" data-duration="${c.duration ?? ""}" data-status="${c.status}">${formatCompareTime(c)}</td>
+        <td class="compare-time" data-elapsed="${c.elapsed_seconds ?? ""}" data-clock="${performance.now()}" data-status="${c.status}">${formatCompareTime(c)}</td>
         <td>${r.file_size ? ((r.file_size||0)/1024).toFixed(1) + " KB" : "-"}</td>
         <td>${fmtDate(c.created_at)}</td>
         <td class="text-end">
@@ -55,7 +55,7 @@ async function loadReports() {
 
 function formatCompareTime(comparison) {
   if (comparison.status === "RUNNING") {
-    return `${((Date.now() - new Date(comparison.created_at).getTime()) / 1000).toFixed(1)} s`;
+    return `${Number(comparison.elapsed_seconds || 0).toFixed(1)} s`;
   }
   return comparison.duration == null ? "-" : `${Number(comparison.duration).toFixed(1)} s`;
 }
@@ -82,7 +82,9 @@ function escapeHtml(value) {
 
 function refreshRunningTimes() {
   document.querySelectorAll(".compare-time[data-status='RUNNING']").forEach(el => {
-    el.textContent = `${((Date.now() - new Date(el.dataset.created).getTime()) / 1000).toFixed(1)} s`;
+    const elapsed = Number(el.dataset.elapsed || 0);
+    const started = Number(el.dataset.clock || performance.now());
+    el.textContent = `${(elapsed + (performance.now() - started) / 1000).toFixed(1)} s`;
   });
 }
 
