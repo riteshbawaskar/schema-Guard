@@ -4,7 +4,6 @@
 PostgreSQL and SQLite through a lightweight Blue/White enterprise UI, a REST API,
 and a CLI — all three backed by the exact same core services.
 
----
 
 ## 1. Architecture Summary
 
@@ -14,35 +13,27 @@ REST API (FastAPI)                ├─► Services ─► Connectors / Schema 
 CLI (Typer, `python -m dbvalidator`) ┘
 ```
 
-- **No persisted "Connection" entity.** A `DatabaseConfiguration` is the only
   persisted object needed to connect to a database. Runtime connectors are
   created on demand via a `ConnectorFactory` and are never persisted.
-- **Plugin connector architecture.** `DatabaseConnector` (ABC) is implemented
   by `SQLiteConnector`, `PostgreSQLConnector`, `OracleConnector`, and
   `SnowflakeConnector` (PAT auth). New types (SQL Server, MySQL, DB2,
   Redshift, Databricks, BigQuery, ...) register via
   `app.connectors.factory.register_connector()` without touching existing code.
-- **Canonical schema.** Every connector extracts into one deterministic,
   versioned JSON format (`app/schema/canonical.py`), with datatype
   normalization in `strict` or `compatible` mode (`app/schema/normalization.py`).
-- **Comparison engine** (`app/comparison/engine.py`) is a pure function of two
   canonical schemas — no I/O — so it is identical whether invoked from the
   API, the UI, or the CLI, and is fully unit-testable.
-- **Reusable table filters** (`app/filters/engine.py`) support starts_with,
   ends_with, contains, exact, wildcard, and regex matching with independent
   include/exclude pattern lists. Filters are evaluated **independently**
   against each side of a comparison, so they narrow scope without ever
   hiding a genuine difference.
-- **File-based large artifacts.** Schema JSON snapshots live under
   `data/schemas/<id>/vN.json`; HTML reports live under
   `data/reports/YYYY/MM/<comparison-id>.html`. SQLite (`data/app.db`) stores
   only metadata rows, never the large payloads.
-- **Secrets** (passwords/PATs) are encrypted at rest with Fernet
   (`app/security/secret_service.py`), driven by an environment-provided
   master key that is never written to `app.db`, masked in every API
   response and UI view, and scrubbed from log output.
 
----
 
 ## 2. Project Structure
 
@@ -74,7 +65,6 @@ db-schema-validator/
 └── README.md
 ```
 
----
 
 ## 3. Installation
 
@@ -93,7 +83,6 @@ these drivers is unavailable in your environment, the app still runs — the
 corresponding connector raises a clear error only when you actually try to
 use that database type.
 
----
 
 ## 4. Configuration
 
@@ -133,7 +122,6 @@ is `DataSource:field`); adding other Axiom object types is a configuration
 change, not a parser change. The policy is deliberately kept in YAML so a
 future complete-document validator can use the same backend contract.
 
----
 
 ## 5. How to Run
 
@@ -142,14 +130,11 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 Then open:
-- `http://localhost:8000/` — Dashboard / UI
-- `http://localhost:8000/docs` — FastAPI interactive API docs
 
 The app creates `data/app.db` and the `data/schemas`, `data/reports`,
 `data/uploads` folders automatically on first startup, and preserves all
 configurations, filters, versions, comparisons, and reports across restarts.
 
----
 
 ## 6. Creating the SQLite Test Databases
 
@@ -166,7 +151,6 @@ database. Add them as `sqlite` Database Configurations (UI: **Database
 Configurations → Add Configuration**, or via the CLI/API) pointing at those
 two files to try the full app.
 
----
 
 ## 7. Snowflake PAT Setup
 
@@ -184,7 +168,6 @@ The PAT is never logged, never included in canonical schema JSON or
 reports, never returned by `GET /api/database-configurations`, and is shown
 masked (`********`) in the UI.
 
----
 
 ## 8. CLI Examples
 
@@ -215,7 +198,6 @@ Exit codes: `0` = PASS, `1` = schema differences found (per `--fail-on`),
 `2` = configuration/execution error. This makes the CLI directly usable as
 a CI/CD gate (Jenkins, GitHub Actions, GitLab CI, Azure DevOps).
 
----
 
 ## 9. API Documentation
 
@@ -246,7 +228,6 @@ GET                  /api/reports, /api/reports/{id}, /api/reports/{id}/html
 There is intentionally **no** `/api/connections` endpoint — connections are
 always ephemeral, built at request time from a `DatabaseConfiguration`.
 
----
 
 ## 10. Test Execution
 

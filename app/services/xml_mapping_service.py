@@ -8,6 +8,11 @@ import yaml
 
 MAPPING_PATH = Path("config/axiom_mapping.yaml")
 DEFAULT_MAPPING = {
+    "table_matching": {
+        "enabled": True,
+        "ignore_names": False,
+        "mappings": [],
+    },
     "attribute_mappings": [],
     "ignored_attributes": [],
     "missing_attribute": {"severity": "WARNING", "fail": False},
@@ -28,13 +33,15 @@ DEFAULT_MAPPING = {
 def load_mapping(path: str | Path | None = None) -> dict[str, Any]:
     mapping_path = Path(path) if path else MAPPING_PATH
     if not mapping_path.exists():
-        return {"xml": dict(DEFAULT_MAPPING["xml"])}
+        return _merge_defaults({})
     with mapping_path.open(encoding="utf-8") as handle:
         loaded = yaml.safe_load(handle) or {}
     return _merge_defaults(loaded)
 
 
 def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
+    table_matching = dict(DEFAULT_MAPPING["table_matching"])
+    table_matching.update(value.get("table_matching") or {})
     generic = {key: value.get(key, default) for key, default in DEFAULT_MAPPING.items() if key != "xml"}
     xml = dict(DEFAULT_MAPPING["xml"])
     xml.update(value.get("xml", {}))
@@ -42,7 +49,7 @@ def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
         **DEFAULT_MAPPING["xml"]["missing_attribute"],
         **(xml.get("missing_attribute") or {}),
     }
-    return {**value, **generic, "xml": xml}
+    return {**value, **generic, "table_matching": table_matching, "xml": xml}
 
 
 def validate_mapping(value: dict[str, Any]) -> dict[str, Any]:
@@ -51,6 +58,14 @@ def validate_mapping(value: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("attribute_mappings must be a list")
     if not isinstance(value.get("ignored_attributes"), list):
         raise ValueError("ignored_attributes must be a list")
+    table_matching = value.get("table_matching", {})
+    if not isinstance(table_matching.get("ignore_names", False), bool):
+        raise ValueError("table_matching.ignore_names must be boolean")
+    if not isinstance(table_matching.get("mappings", []), list):
+        raise ValueError("table_matching.mappings must be a list")
+    for item in table_matching.get("mappings", []):
+        if not isinstance(item, dict) or not item.get("source") or not item.get("destination"):
+            raise ValueError("Each table mapping requires source and destination")
     xml = value["xml"]
     for item in value["attribute_mappings"] + xml.get("attribute_mappings", []):
         if not isinstance(item, dict) or not item.get("source") or not item.get("target"):

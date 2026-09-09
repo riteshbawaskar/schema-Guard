@@ -7,6 +7,12 @@
 </div>
 <div id="mappingStatus"></div>
 <div class="section-card mb-3">
+  <div class="d-flex justify-content-between align-items-center"><h6 class="text-primary mb-0">Table matching</h6><button class="btn btn-outline-primary btn-sm" id="addTableMapping"><i class="bi bi-plus"></i> Add table mapping</button></div>
+  <p class="text-muted small mt-2">Map different source and destination table names to one logical table. Enable Ignore table names only when table order is reliable.</p>
+  <div class="row g-3 mb-3"><div class="col-md-4 form-check form-switch ms-2"><input class="form-check-input" id="tableMatchingEnabled" type="checkbox"><label class="form-check-label" for="tableMatchingEnabled">Table mapping enabled</label></div><div class="col-md-4 form-check form-switch ms-2"><input class="form-check-input" id="ignoreTableNames" type="checkbox"><label class="form-check-label" for="ignoreTableNames">Ignore table names</label></div></div>
+  <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Enabled</th><th>Source table</th><th>Destination table</th><th></th></tr></thead><tbody id="tableMappingRows"></tbody></table></div>
+</div>
+<div class="section-card mb-3">
   <h6 class="text-primary">XML validation</h6>
   <div class="row g-3">
     <div class="col-md-4 form-check form-switch ms-2"><input class="form-check-input" id="enabled" type="checkbox"><label class="form-check-label" for="enabled">XML mapping enabled</label></div>

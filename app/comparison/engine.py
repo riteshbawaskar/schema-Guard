@@ -153,12 +153,12 @@ def _compare_primary_key(src_table: TableModel, dst_table: TableModel, rules: di
                        severity="INFO", source_value=s.model_dump(), destination_value=d.model_dump())
 
 
-def _compare_table(src_table: TableModel | None, dst_table: TableModel | None, rules: dict, xml_policy: dict) -> TableDiff:
+def _compare_table(src_table: TableModel | None, dst_table: TableModel | None, rules: dict, xml_policy: dict, logical_name: str | None = None) -> TableDiff:
     if src_table is not None and dst_table is None:
-        return TableDiff(table_name=src_table.name, diff_type="REMOVED",
+        return TableDiff(table_name=logical_name or src_table.name, diff_type="REMOVED",
                           severity=get_severity(rules, "table", "REMOVED"))
     if src_table is None and dst_table is not None:
-        return TableDiff(table_name=dst_table.name, diff_type="ADDED",
+        return TableDiff(table_name=logical_name or dst_table.name, diff_type="ADDED",
                           severity=get_severity(rules, "table", "ADDED"))
 
     assert src_table is not None and dst_table is not None
@@ -190,7 +190,7 @@ def _compare_table(src_table: TableModel | None, dst_table: TableModel | None, r
     table_severity = max(severities, key=_severity_rank) if severities else "INFO"
 
     return TableDiff(
-        table_name=dst_table.name, diff_type=table_diff_type, severity=table_severity,
+        table_name=logical_name or dst_table.name, diff_type=table_diff_type, severity=table_severity,
         column_diffs=column_diffs, primary_key_diff=pk_diff,
         foreign_key_diffs=fk_diffs, unique_constraint_diffs=uq_diffs,
         check_constraint_diffs=chk_diffs, index_diffs=idx_diffs,
@@ -214,8 +214,45 @@ def compare_schemas(
     dst_map = {t.name: t for t in dst_sorted.tables}
 
     table_diffs: list[TableDiff] = []
-    for name in sorted(set(src_map) | set(dst_map)):
-        table_diffs.append(_compare_table(src_map.get(name), dst_map.get(name), rules, xml_policy))
+    table_policy = xml_policy.get("table_matching", {})
+    use_matching = table_policy.get("enabled", True)
+    ignore_names = use_matching and table_policy.get("ignore_names", False)
+    pairs: list[tuple[str, TableModel | None, TableModel | None]] = []
+    used_source: set[str] = set()
+    used_destination: set[str] = set()
+
+    if use_matching:
+        for item in table_policy.get("mappings") or []:
+            if item.get("enabled", True) is False:
+                continue
+            source_name = item.get("source")
+            destination_name = item.get("destination")
+            source_table = src_map.get(source_name)
+            destination_table = dst_map.get(destination_name)
+            if source_table is not None and destination_table is not None:
+                pairs.append((source_name, source_table, destination_table))
+                used_source.add(source_name)
+                used_destination.add(destination_name)
+
+    for name in sorted(set(src_map) & set(dst_map)):
+        if name not in used_source and name not in used_destination:
+            pairs.append((name, src_map[name], dst_map[name]))
+            used_source.add(name)
+            used_destination.add(name)
+
+    unmatched_source = [src_map[name] for name in sorted(set(src_map) - used_source)]
+    unmatched_destination = [dst_map[name] for name in sorted(set(dst_map) - used_destination)]
+    if ignore_names:
+        paired_count = min(len(unmatched_source), len(unmatched_destination))
+        for source_table, destination_table in zip(unmatched_source, unmatched_destination):
+            pairs.append((source_table.name, source_table, destination_table))
+        unmatched_source = unmatched_source[paired_count:]
+        unmatched_destination = unmatched_destination[paired_count:]
+
+    pairs.extend((table.name, table, None) for table in unmatched_source)
+    pairs.extend((table.name, None, table) for table in unmatched_destination)
+    for logical_name, source_table, destination_table in pairs:
+        table_diffs.append(_compare_table(source_table, destination_table, rules, xml_policy, logical_name))
 
     summary = ComparisonSummary(tables_compared=len(table_diffs))
     for td in table_diffs:

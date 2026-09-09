@@ -4,6 +4,14 @@
 
 # These mappings and ignored attributes are shared by every comparison source.
 # They are not limited to XML.
+table_matching:
+  enabled: true
+  ignore_names: false
+  mappings:
+    # - source: Mizuho_Guarantee_Monthly
+    #   destination: GUARANTEE_MONTHLY
+    #   enabled: true
+
 attribute_mappings:
   - source: type
     target: datatype
