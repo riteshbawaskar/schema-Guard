@@ -1,7 +1,10 @@
 table_matching:
   enabled: true
   ignore_names: false
-  mappings: []
+  mappings:
+  - source: source
+    destination: dest
+    enabled: true
 attribute_mappings:
 - source: type
   target: datatype
