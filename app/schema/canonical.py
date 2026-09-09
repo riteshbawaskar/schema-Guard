@@ -27,6 +27,24 @@ class ColumnModel(BaseModel):
     comment: Optional[str] = None
     source_properties: dict[str, str | None] = Field(default_factory=dict)
 
+    @classmethod
+    def from_source_properties(
+        cls,
+        name: str,
+        ordinal_position: int,
+        native_datatype: str,
+        normalized_datatype: str,
+        source_properties: dict[str, str | None],
+    ) -> "ColumnModel":
+        """Build the canonical column envelope around arbitrary source fields."""
+        return cls(
+            name=name,
+            ordinal_position=ordinal_position,
+            native_datatype=native_datatype,
+            normalized_datatype=normalized_datatype,
+            source_properties=source_properties,
+        )
+
 
 class PrimaryKeyModel(BaseModel):
     name: Optional[str] = None

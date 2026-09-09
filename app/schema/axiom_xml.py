@@ -79,12 +79,10 @@ def parse_axiom_xml(content: bytes, mapping_path: str | Path | None = None) -> C
     mappings = [item for item in generic if item.get("enabled", True)]
     target_to_source = {item["target"]: item["source"] for item in mappings}
     enabled_sources = {item["source"] for item in mappings}
-    identity = mapping.get("identity_attributes", {})
-    name_property = identity.get("name") or target_to_source.get("name")
-    datatype_property = identity.get("datatype") or target_to_source.get("datatype")
+    name_property = target_to_source.get("name")
+    datatype_property = target_to_source.get("datatype")
     if not name_property or not datatype_property:
         raise ValueError("XML mapping requires identity_attributes.name and identity_attributes.datatype")
-    ignored_properties = set(mapping.get("ignored_properties", []))
     comparable_sources = {
         item["source"] for item in mappings if item.get("compare", True)
     }
@@ -92,14 +90,14 @@ def parse_axiom_xml(content: bytes, mapping_path: str | Path | None = None) -> C
         raw_props = _properties(field)
         props = {
             key: value for key, value in raw_props.items()
-            if key not in ignored_properties and key in enabled_sources
+            if key in enabled_sources
         }
         name = raw_props.get(name_property) or field.get("type")
         axiom_type = (raw_props.get(datatype_property) or field.get("type") or "").upper()
         if not name or not axiom_type:
             raise ValueError("Every DataSource:field must contain name and type properties")
         native_type = map_value(full_mapping, "datatype", axiom_type)
-        columns.append(ColumnModel(
+        columns.append(ColumnModel.from_source_properties(
             name=name,
             ordinal_position=ordinal,
             native_datatype=native_type,

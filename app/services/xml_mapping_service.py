@@ -20,7 +20,6 @@ DEFAULT_MAPPING = {
         "validate_object_types": ["DataSource:field"],
         "validate_scope": "selected_objects",
         "missing_attribute": {"severity": "WARNING", "fail": False},
-        "ignored_properties": [],
     }
 }
 
@@ -56,13 +55,7 @@ def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
     }
     xml = dict(DEFAULT_MAPPING["xml"])
     xml.update(value.get("xml", {}))
-    if "identity_attributes" not in xml:
-        xml["identity_attributes"] = {"name": "name", "datatype": "type"}
     if xml.get("field_properties") and not generic["attribute_mappings"]:
-        xml["identity_attributes"] = {
-            "name": xml["field_properties"].get("name", xml["identity_attributes"]["name"]),
-            "datatype": xml["field_properties"].get("datatype", xml["identity_attributes"]["datatype"]),
-        }
         generic["attribute_mappings"] = [
             {"source": source, "target": target, "enabled": True, "compare": True}
             for target, source in xml["field_properties"].items()
@@ -130,7 +123,14 @@ def save_mapping(value: dict[str, Any], path: str | Path | None = None) -> dict[
 
 def map_value(policy: dict[str, Any], attribute: str, value: Any) -> Any:
     """Return the configured canonical value for a comparison attribute."""
+    attribute_key = attribute.casefold()
     for item in policy.get("value_mappings", []):
-        if item.get("enabled", True) and item.get("attribute") == attribute and value == item.get("source"):
+        configured_attribute = str(item.get("attribute", "")).casefold()
+        source_value = item.get("source")
+        values_match = (
+            isinstance(value, str) and isinstance(source_value, str)
+            and value.casefold() == source_value.casefold()
+        ) or value == source_value
+        if item.get("enabled", True) and configured_attribute == attribute_key and values_match:
             return item.get("target")
     return value

@@ -43,21 +43,12 @@ missing_attribute:
 xml:
   enabled: true
   object_type: DataSource
-  identity_attributes:
-    name: name
-    datatype: type
   validate_object_types:
   - DataSource:field
   validate_scope: selected_objects
   missing_attribute:
     severity: WARNING
     fail: false
-  ignored_properties:
-  - syntheticContent
-  - lookupSource
-  - parentFields
-  - isCountFieldFor
-  ignored_attributes: []
 value_mappings:
 - attribute: datatype
   source: TEXT

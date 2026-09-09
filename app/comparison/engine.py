@@ -68,13 +68,10 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
         }
         source_values = _column_snapshot(s)
         destination_values = _column_snapshot(d)
-        comparable_keys = (set(source_values) | set(destination_values)) - {"name", "source_properties"}
+        comparable_keys = set(source_values) | set(destination_values)
+        comparable_keys -= set(xml_policy.get("non_comparable_attributes", []))
         for category in sorted(comparable_keys):
-            severity_category = {
-                "normalized_datatype": "datatype",
-                "ordinal_position": "position",
-                "is_identity": "identity",
-            }.get(category) or category
+            severity_category = xml_policy.get("comparison_categories", {}).get(category, category)
             source_has = category in source_values
             destination_has = category in destination_values
             if category in ignored_attributes:
