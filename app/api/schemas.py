@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -69,6 +70,9 @@ async def upload_schema(file: UploadFile = File(...)):
         content = await file.read()
         if (file.filename or "").lower().endswith(".xml"):
             canonical = parse_axiom_xml(content)
+            # Keep the user-facing filename in metadata; the stored artifact
+            # intentionally continues to use a generated name.
+            canonical.metadata.database_configuration = Path(file.filename or "schema.xml").name
         else:
             canonical = CanonicalSchema.model_validate_json(content)
     except Exception as e:  # noqa: BLE001

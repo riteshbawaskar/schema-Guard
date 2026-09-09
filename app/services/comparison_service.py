@@ -83,6 +83,8 @@ def _initial_job_label(
     if source_type == "uploaded_json":
         from app.storage.schema_storage import load_schema_from_path
         raw = load_schema_from_path(reference)
+        if raw.metadata.database_type.lower() == "axiom" and raw.metadata.database_configuration:
+            return raw.metadata.database_configuration
         return raw.metadata.schema_name or raw.metadata.database or reference
     return reference
 
@@ -116,7 +118,10 @@ def resolve_side(
         # reference = file path under data/uploads
         from app.storage.schema_storage import load_schema_from_path
         raw = load_schema_from_path(reference)
-        label = raw.metadata.schema_name or raw.metadata.database or reference
+        if raw.metadata.database_type.lower() == "axiom" and raw.metadata.database_configuration:
+            label = raw.metadata.database_configuration
+        else:
+            label = raw.metadata.schema_name or raw.metadata.database or reference
         filtered, removed = _filter_canonical_schema(raw, filter_id, db)
         return filtered, removed, label
     else:
