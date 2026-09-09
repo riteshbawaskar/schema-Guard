@@ -42,6 +42,11 @@ def load_mapping(path: str | Path | None = None) -> dict[str, Any]:
 def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
     table_matching = dict(DEFAULT_MAPPING["table_matching"])
     table_matching.update(value.get("table_matching") or {})
+    # Accept the older singular key and normalize empty YAML/UI values.
+    if "mapping" in table_matching and "mappings" not in table_matching:
+        table_matching["mappings"] = table_matching.pop("mapping")
+    if table_matching.get("mappings") is None:
+        table_matching["mappings"] = []
     generic = {key: value.get(key, default) for key, default in DEFAULT_MAPPING.items() if key != "xml"}
     xml = dict(DEFAULT_MAPPING["xml"])
     xml.update(value.get("xml", {}))

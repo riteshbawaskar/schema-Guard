@@ -71,9 +71,9 @@ async function loadMapping() {
   catch (error) { document.getElementById("mappingStatus").innerHTML = `<div class="alert alert-danger">${error.message}</div>`; }
 }
 
-document.getElementById("addMapping").onclick = () => mappingRow();
-document.getElementById("addTableMapping").onclick = () => tableMappingRow();
-document.getElementById("addXmlMapping").onclick = () => mappingRow({}, "xmlMappingRows");
+document.getElementById("addMapping").onclick = event => { event.preventDefault(); mappingRow(); };
+document.getElementById("addTableMapping").onclick = event => { event.preventDefault(); tableMappingRow(); };
+document.getElementById("addXmlMapping").onclick = event => { event.preventDefault(); mappingRow({}, "xmlMappingRows"); };
 document.getElementById("saveMapping").onclick = async () => {
   try {
     renderMapping(await apiRequest("/api/compare-config", { method: "PUT", body: collectMapping() }));

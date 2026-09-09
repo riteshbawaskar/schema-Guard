@@ -40,3 +40,9 @@ def test_ignore_table_names_pairs_remaining_tables(tmp_path, monkeypatch):
     assert len(result.table_diffs) == 1
     assert result.table_diffs[0].diff_type == "UNCHANGED"
     assert result.table_diffs[0].table_name == "XML_TABLE"
+
+
+def test_null_table_mappings_are_normalized(tmp_path):
+    path = tmp_path / "mapping.yaml"
+    xml_mapping_service.save_mapping({"table_matching": {"mapping": []}}, path)
+    assert xml_mapping_service.load_mapping(path)["table_matching"]["mappings"] == []
