@@ -13,13 +13,14 @@ from app.comparison.models import (
 )
 from app.comparison.severity import get_severity, load_fail_on, load_severity_rules
 from app.schema.canonical import CanonicalSchema, ColumnModel, TableModel
+from app.services.xml_mapping_service import load_mapping
 
 
 def _index_by_name(items: list, key: str = "name") -> dict:
     return {getattr(i, key): i for i in items}
 
 
-def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], rules: dict) -> list[ObjectDiff]:
+def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], rules: dict, xml_policy: dict) -> list[ObjectDiff]:
     src_map = _index_by_name(src_cols)
     dst_map = _index_by_name(dst_cols)
     diffs: list[ObjectDiff] = []
@@ -43,6 +44,8 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
             continue
 
         field_diffs: list[FieldDiff] = []
+        mapping = xml_policy.get("xml", {})
+        ignored_attributes = set(xml_policy.get("ignored_attributes", []))
         checks = [
             ("datatype", s.normalized_datatype, d.normalized_datatype),
             ("length", s.length, d.length),
@@ -54,11 +57,30 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
             ("position", s.ordinal_position, d.ordinal_position),
         ]
         for category, sv, dv in checks:
+            if category in ignored_attributes:
+                continue
             if sv != dv:
                 field_diffs.append(FieldDiff(
                     category=category, field=category, source_value=sv, destination_value=dv,
                     severity=get_severity(rules, category, "MODIFIED"),
                 ))
+
+        # Axiom exports carry additional field metadata that is not part of
+        # the database-neutral column contract. Compare it when both sides
+        # provide XML properties, while leaving database comparisons unchanged.
+        if s.source_properties and d.source_properties:
+            missing_severity = (xml_policy.get("missing_attribute") or {}).get("severity", "WARNING")
+            for property_name in sorted(set(s.source_properties) | set(d.source_properties)):
+                sv = s.source_properties.get(property_name)
+                dv = d.source_properties.get(property_name)
+                if sv != dv:
+                    severity_category = "datatype" if property_name == "type" else "comment"
+                    severity = missing_severity if property_name not in s.source_properties or property_name not in d.source_properties else get_severity(rules, severity_category, "MODIFIED")
+                    field_diffs.append(FieldDiff(
+                        category=f"xml:{property_name}", field=property_name,
+                        source_value=sv, destination_value=dv,
+                        severity=severity,
+                    ))
 
         diff_type = "MODIFIED" if field_diffs else "UNCHANGED"
         severity = max((fd.severity for fd in field_diffs), key=_severity_rank, default="INFO") if field_diffs else "INFO"
@@ -70,7 +92,7 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
     return diffs
 
 
-_SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
+_SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0, "WARNING": -1}
 
 
 def _severity_rank(sev: str) -> int:
@@ -131,7 +153,7 @@ def _compare_primary_key(src_table: TableModel, dst_table: TableModel, rules: di
                        severity="INFO", source_value=s.model_dump(), destination_value=d.model_dump())
 
 
-def _compare_table(src_table: TableModel | None, dst_table: TableModel | None, rules: dict) -> TableDiff:
+def _compare_table(src_table: TableModel | None, dst_table: TableModel | None, rules: dict, xml_policy: dict) -> TableDiff:
     if src_table is not None and dst_table is None:
         return TableDiff(table_name=src_table.name, diff_type="REMOVED",
                           severity=get_severity(rules, "table", "REMOVED"))
@@ -140,7 +162,7 @@ def _compare_table(src_table: TableModel | None, dst_table: TableModel | None, r
                           severity=get_severity(rules, "table", "ADDED"))
 
     assert src_table is not None and dst_table is not None
-    column_diffs = _compare_columns(src_table.columns, dst_table.columns, rules)
+    column_diffs = _compare_columns(src_table.columns, dst_table.columns, rules, xml_policy)
     pk_diff = _compare_primary_key(src_table, dst_table, rules)
     fk_diffs = _compare_named_collection("foreign_key", src_table.foreign_keys, dst_table.foreign_keys, rules)
     uq_diffs = _compare_named_collection("unique_constraint", src_table.unique_constraints, dst_table.unique_constraints, rules)
@@ -182,6 +204,7 @@ def compare_schemas(
     fail_on: list[str] | None = None,
 ) -> ComparisonResult:
     rules = load_severity_rules(severity_config_path)
+    xml_policy = load_mapping()
     fail_on = fail_on if fail_on is not None else load_fail_on(severity_config_path)
 
     src_sorted = source.sorted()
@@ -192,7 +215,7 @@ def compare_schemas(
 
     table_diffs: list[TableDiff] = []
     for name in sorted(set(src_map) | set(dst_map)):
-        table_diffs.append(_compare_table(src_map.get(name), dst_map.get(name), rules))
+        table_diffs.append(_compare_table(src_map.get(name), dst_map.get(name), rules, xml_policy))
 
     summary = ComparisonSummary(tables_compared=len(table_diffs))
     for td in table_diffs:
@@ -223,6 +246,8 @@ def compare_schemas(
                 summary.medium_count += 1
             elif sev == "LOW":
                 summary.low_count += 1
+            elif sev == "WARNING":
+                summary.warning_count += 1
             else:
                 summary.info_count += 1
 
@@ -231,6 +256,8 @@ def compare_schemas(
     return ComparisonResult(
         source_label=source.metadata.database_configuration or source.metadata.database or "source",
         destination_label=destination.metadata.database_configuration or destination.metadata.database or "destination",
+        source_format="xml" if source.metadata.database_type.lower() == "axiom" else "database",
+        destination_format="xml" if destination.metadata.database_type.lower() == "axiom" else "database",
         status=status,
         summary=summary,
         table_diffs=table_diffs,
@@ -239,7 +266,7 @@ def compare_schemas(
 
 def _collect_severities(td: TableDiff) -> list[str]:
     sevs = []
-    if td.diff_type != "UNCHANGED":
+    if td.diff_type != "UNCHANGED" and td.severity != "WARNING":
         sevs.append(td.severity)
     for coll in (td.column_diffs, td.foreign_key_diffs, td.unique_constraint_diffs, td.check_constraint_diffs, td.index_diffs):
         for d in coll:

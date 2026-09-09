@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<object stamp="d8111d95-bb63-48f1-9eb1-a2f6b0915518_1788194460255" type="DataSource" version="1001">
+  <property name="objectId" value="303436a9-059f-4e95-a717-e4658b5252d2" valueType="string"/>
+  <property name="branchId" value="75e6bd80-e356-40e9-9133-af8aad5ee9f0" valueType="string"/>
+  <property name="name" value="Mizuho_Guarantee_Monthly" valueType="string"/>
+  <property name="description" value="Mizuho Guarantees Monthly Data Source" valueType="string"/>
+  <property name="hosting" value="INTERNAL" valueType="string"/>
+  <property name="dbSource" valueType="url"></property>
+  <property name="defaultVisibilityInModel" value="true" valueType="boolean"/>
+  <property name="dataStructure" value="FLAT" valueType="string"/>
+
+  <property name="layout" valueType="table">
+
+    <object type="DataSource:field" version="3.0">
+      <property name="id" value="bc03f1a2-b046-4925-bb55-18724886cf75" valueType="string"/>
+      <property name="name" value="asof_date" valueType="string"/>
+      <property name="description" value="Instance Date" valueType="string"/>
+      <property name="title" value="" valueType="string"/>
+      <property name="type" value="DATE" valueType="string"/>
+      <property name="allowNulls" value="false" valueType="boolean"/>
+      <property name="allowDefault" value="false" valueType="boolean"/>
+      <property name="syntheticContent" valueType="table"/>
+      <property name="lookupSource" valueType="url"/>
+      <property name="parentFields" valueType="table"/>
+      <property name="aggregatedFunction" value="" valueType="string"/>
+      <property name="isCountFieldFor" valueType="url"/>
+      <property name="displayFormat" value="" valueType="string"/>
+      <property name="showSubtotal" value="false" valueType="boolean"/>
+    </object>
+
+    <object type="DataSource:field" version="3.0">
+      <property name="id" value="7bee90c4-1243-4ce0-8b7f-100d80371107" valueType="string"/>
+      <property name="name" value="AS_OF_DATE" valueType="string"/>
+      <property name="description" value="As of Date" valueType="string"/>
+      <property name="title" value="" valueType="string"/>
+      <property name="type" value="DATE" valueType="string"/>
+      <property name="allowNulls" value="false" valueType="boolean"/>
+      <property name="allowDefault" value="false" valueType="boolean"/>
+      <property name="syntheticContent" valueType="table"/>
+      <property name="lookupSource" valueType="url"/>
+      <property name="parentFields" valueType="table"/>
+      <property name="aggregatedFunction" value="" valueType="string"/>
+      <property name="isCountFieldFor" valueType="url"/>
+      <property name="displayFormat" value="YYYY-MM-DD" valueType="string"/>
+      <property name="showSubtotal" value="false" valueType="boolean"/>
+      <property name="isHidden" value="false" valueType="boolean"/>
+    </object>
+
+    <!-- A third DataSource:field object is visible at the bottom of the first screenshot,
+         but only its ID is visible, so it has not been fabricated here. -->
+
+    <property name="keyFields" valueType="table"/>
+  </property>
+
+  <property name="index" valueType="table"/>
+  <property name="createIndexOnKeyFields" value="true" valueType="boolean"/>
+  <property name="indexOnKeyFieldsClustered" value="true" valueType="boolean"/>
+  <property name="indexOnKeyFieldsInvisible" value="false" valueType="boolean"/>
+  <property name="storageType" value="CONTINUOUS_PARTITION" valueType="string"/>
+  <property name="columnStorage" value="true" valueType="boolean"/>
+  <property name="internalSourceTablePrefix" value="" valueType="string"/>
+  <property name="asOfDateField" valueType="url"></property>
+  <property name="instanceKeys" valueType="table"/>
+
+  <property name="postTableCreationStatements" valueType="table"/>
+  <property name="postAdjustmentTableCreationStatements" valueType="table"/>
+  <property name="keyVariables" valueType="table"/>
+  <property name="nonKeyVariables" valueType="table"/>
+  <property name="computeStatistics" value="FOR_ALL_COLUMNS" valueType="string"/>
+  <property name="validations" valueType="table"/>
+  <property name="fQueryCheck" value="false" valueType="boolean"/>
+  <property name="readOnlyAdjustment" value="false" valueType="boolean"/>
+  <property name="freezeLevel" value="1" valueType="integer"/>
+  <property name="instanceRebuildRestriction" value="AlterFullRebuild" valueType="string"/>
+  <property name="loaders" valueType="table"/>
+</object>

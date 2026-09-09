@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Compare Configuration{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h2><i class="bi bi-sliders"></i> Compare Configuration</h2>
+  <button class="btn btn-primary" id="saveMapping"><i class="bi bi-save"></i> Save Configuration</button>
+</div>
+<div id="mappingStatus"></div>
+<div class="section-card mb-3">
+  <h6 class="text-primary">XML validation</h6>
+  <div class="row g-3">
+    <div class="col-md-4 form-check form-switch ms-2"><input class="form-check-input" id="enabled" type="checkbox"><label class="form-check-label" for="enabled">XML mapping enabled</label></div>
+    <div class="col-md-4"><label class="form-label">Root object type</label><input class="form-control" id="objectType"></div>
+    <div class="col-md-4"><label class="form-label">Validation scope</label><select class="form-select" id="scope"><option value="selected_objects">Selected object types</option><option value="all_objects">All objects</option><option value="complete_xml">Complete XML</option></select></div>
+    <div class="col-md-8"><label class="form-label">Object types to validate</label><input class="form-control" id="objectTypes" placeholder="DataSource:field, DataSource:measure"></div>
+    <div class="col-md-4"><label class="form-label">Ignored attributes</label><input class="form-control" id="ignoredAttributes" placeholder="length, precision"></div>
+  </div>
+  <hr class="my-4">
+  <div class="d-flex justify-content-between align-items-center"><h6 class="text-primary mb-0">XML-specific mappings</h6><button class="btn btn-outline-primary btn-sm" id="addXmlMapping"><i class="bi bi-plus"></i> Add XML mapping</button></div>
+  <p class="text-muted small mt-2">These mappings are used only while converting configured XML objects into canonical fields.</p>
+  <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Enabled</th><th>XML attribute</th><th>Canonical attribute</th><th>Compare</th><th></th></tr></thead><tbody id="xmlMappingRows"></tbody></table></div>
+</div>
+<div class="section-card mb-3">
+  <div class="d-flex justify-content-between align-items-center"><h6 class="text-primary mb-0">Generic attribute mappings</h6><button class="btn btn-outline-primary btn-sm" id="addMapping"><i class="bi bi-plus"></i> Add mapping</button></div>
+  <p class="text-muted small mt-2">These mappings apply to every comparison source. Enable Compare to include the attribute in comparison.</p>
+  <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Enabled</th><th>Source attribute</th><th>Target attribute</th><th>Compare</th><th></th></tr></thead><tbody id="mappingRows"></tbody></table></div>
+</div>
+<div class="section-card">
+  <h6 class="text-primary">Missing mapped attributes</h6>
+  <div class="row g-3"><div class="col-md-4"><label class="form-label">Severity</label><select class="form-select" id="missingSeverity"><option>WARNING</option><option>INFO</option></select></div><div class="col-md-4 form-check form-switch ms-2 mt-4"><input class="form-check-input" id="missingFail" type="checkbox"><label class="form-check-label" for="missingFail">Fail comparison</label></div></div>
+  <p class="text-muted small mt-2">WARNING is excluded from the default fail thresholds, so a missing attribute is reported without failing the comparison.</p>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/xml_mapping.js"></script>{% endblock %}

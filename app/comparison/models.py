@@ -63,11 +63,14 @@ class ComparisonSummary(BaseModel):
     medium_count: int = 0
     low_count: int = 0
     info_count: int = 0
+    warning_count: int = 0
 
 
 class ComparisonResult(BaseModel):
     source_label: str
     destination_label: str
+    source_format: str = "database"  # xml|database
+    destination_format: str = "database"  # xml|database
     source_filter: Optional[str] = None
     destination_filter: Optional[str] = None
     normalization_mode: str = "compatible"

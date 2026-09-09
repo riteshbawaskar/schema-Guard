@@ -31,6 +31,7 @@
   .sev-MEDIUM { background:#FFFDE7; color:#F9A825; }
   .sev-LOW { background:#E3F2FD; color:var(--primary); }
   .sev-INFO { background:#ECEFF1; color:#607D8B; }
+  .sev-WARNING { background:#FFF8E1; color:#8D6E00; }
   .toolbar { background:var(--white); border:1px solid #E0E6ED; border-radius:8px; padding:12px; margin-bottom:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; position:sticky; top:66px; z-index:9; }
   .toolbar input[type=text] { padding:7px 10px; border:1px solid #CFD8DC; border-radius:6px; width:240px; }
   .toolbar label { font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none; }
@@ -88,6 +89,7 @@
     <div class="card"><div class="num" style="color:var(--error)">{{ result.summary.critical_count }}</div><div class="lbl">Critical</div></div>
     <div class="card"><div class="num" style="color:#E65100">{{ result.summary.high_count }}</div><div class="lbl">High</div></div>
     <div class="card"><div class="num" style="color:#F9A825">{{ result.summary.medium_count }}</div><div class="lbl">Medium</div></div>
+    <div class="card"><div class="num" style="color:#8D6E00">{{ result.summary.warning_count }}</div><div class="lbl">Warnings</div></div>
   </div>
 
   {% if result.removed_by_filter.source or result.removed_by_filter.destination %}
@@ -118,13 +120,14 @@
     <button class="pill active" data-type="ADDED">Added</button>
     <button class="pill active" data-type="REMOVED">Removed</button>
     <button class="pill active" data-type="MODIFIED">Modified</button>
-    <button class="pill" data-type="UNCHANGED">Unchanged</button>
+    <button class="pill active" data-type="UNCHANGED">Unchanged</button>
     <span style="width:1px;background:#E0E6ED;align-self:stretch;"></span>
     <button class="pill active" data-sev="CRITICAL">Critical</button>
     <button class="pill active" data-sev="HIGH">High</button>
     <button class="pill active" data-sev="MEDIUM">Medium</button>
     <button class="pill active" data-sev="LOW">Low</button>
     <button class="pill active" data-sev="INFO">Info</button>
+    <button class="pill active" data-sev="WARNING">Warnings</button>
   </div>
 
   <div id="tableList"></div>
@@ -141,8 +144,8 @@
 const ALL_TABLES = JSON.parse(document.getElementById('report-data').textContent);
 const PAGE_SIZE = 25;
 let currentPage = 0;
-let activeTypes = new Set(['ADDED','REMOVED','MODIFIED']);
-let activeSevs = new Set(['CRITICAL','HIGH','MEDIUM','LOW','INFO']);
+let activeTypes = new Set(['ADDED','REMOVED','MODIFIED','UNCHANGED']);
+let activeSevs = new Set(['CRITICAL','HIGH','MEDIUM','LOW','INFO','WARNING']);
 let diffOnly = true;
 let searchTerm = '';
 
@@ -169,9 +172,10 @@ function tableHasAnyRealDifference(t) {
 function visibleChildren(t) {
   const result = {};
   for (const key of CHILD_COLLECTIONS) {
-    result[key] = (t[key] || []).filter(isRealDiff).filter(rowMatchesActiveFilters);
+    const candidates = diffOnly ? (t[key] || []).filter(isRealDiff) : (t[key] || []);
+    result[key] = candidates.filter(rowMatchesActiveFilters);
   }
-  result.primary_key_diff = (t.primary_key_diff && isRealDiff(t.primary_key_diff) && rowMatchesActiveFilters(t.primary_key_diff))
+  result.primary_key_diff = (t.primary_key_diff && (!diffOnly || isRealDiff(t.primary_key_diff)) && rowMatchesActiveFilters(t.primary_key_diff))
     ? t.primary_key_diff : null;
   return result;
 }
@@ -213,14 +217,43 @@ function getFiltered() {
 function badge(type) { return `<span class="badge badge-${type}">${type}</span>`; }
 function sevBadge(sev) { return `<span class="badge sev-${sev}">${sev}</span>`; }
 
+const COLUMN_FIELDS = {datatype:'native_datatype',length:'length',precision:'precision',scale:'scale',nullable:'nullable',default:'default',identity:'is_identity',position:'ordinal_position'};
+const XML_XML_MODE = {{ 'true' if result.source_format == 'xml' and result.destination_format == 'xml' else 'false' }};
+function fieldValue(value) { return value === null || value === undefined ? 'Missing' : String(value); }
+function renderColumnDetails(d) {
+  const source = d.source_value || {};
+  const destination = d.destination_value || {};
+  const mismatches = new Set((d.field_diffs || []).map(fd => fd.category));
+  const fields = XML_XML_MODE ? [] : Object.keys(COLUMN_FIELDS).filter(category => !diffOnly || mismatches.has(category));
+  const xmlSource = source.source_properties || {};
+  const xmlDestination = destination.source_properties || {};
+  const xmlFields = XML_XML_MODE ? [...new Set([...Object.keys(xmlSource), ...Object.keys(xmlDestination)])]
+    .sort().filter(name => !diffOnly || xmlSource[name] !== xmlDestination[name]) : [];
+  const standardRows = fields.map(category => {
+    const matches = source[COLUMN_FIELDS[category]] === destination[COLUMN_FIELDS[category]];
+    const severity = (d.field_diffs || []).find(fd => fd.category === category)?.severity || 'INFO';
+    return `<tr><td>${category}</td><td><code>${fieldValue(source[COLUMN_FIELDS[category]])}</code></td><td><code>${fieldValue(destination[COLUMN_FIELDS[category]])}</code></td><td>${matches ? '<span class="badge sev-INFO">MATCH</span>' : '<span class="badge sev-' + severity + '">MISMATCH</span>'}</td></tr>`;
+  }).join('');
+  const xmlRows = xmlFields.map(name => {
+    const matches = xmlSource[name] === xmlDestination[name];
+    const severity = (d.field_diffs || []).find(fd => fd.field === name)?.severity || 'INFO';
+    return `<tr><td>XML: ${name}</td><td><code>${fieldValue(xmlSource[name])}</code></td><td><code>${fieldValue(xmlDestination[name])}</code></td><td>${matches ? '<span class="badge sev-INFO">MATCH</span>' : '<span class="badge sev-' + severity + '">MISMATCH</span>'}</td></tr>`;
+  }).join('');
+  if (!standardRows && !xmlRows) return '';
+  return `<table class="data field-data"><thead><tr><th>Field</th><th>Source</th><th>Destination</th><th>Result</th></tr></thead><tbody>${standardRows}${xmlRows}</tbody></table>`;
+}
+
 function renderDiffRows(items, kind) {
   if (!items.length) return '';
   let rows = items.map(d => {
     let detail = '';
-    if (d.field_diffs && d.field_diffs.length) {
-      const visibleFieldDiffs = d.field_diffs.filter(fd => activeSevs.has(fd.severity));
-      const toShow = visibleFieldDiffs.length ? visibleFieldDiffs : d.field_diffs;
-      detail = toShow.map(fd => `${fd.field}: <code>${fd.source_value}</code> &rarr; <code>${fd.destination_value}</code> ${sevBadge(fd.severity)}`).join('<br>');
+    if (d.object_type === 'column' && d.source_value && d.destination_value) {
+      detail = renderColumnDetails(d);
+      if (!detail && d.field_diffs && d.field_diffs.length) {
+        detail = d.field_diffs.map(fd => `${fd.field}: <code>${fd.source_value}</code> &rarr; <code>${fd.destination_value}</code> ${sevBadge(fd.severity)}`).join('<br>');
+      }
+    } else if (d.field_diffs && d.field_diffs.length) {
+      detail = d.field_diffs.map(fd => `${fd.field}: <code>${fd.source_value}</code> &rarr; <code>${fd.destination_value}</code> ${sevBadge(fd.severity)}`).join('<br>');
     } else if (d.diff_type === 'ADDED') {
       detail = 'Added in destination';
     } else if (d.diff_type === 'REMOVED') {

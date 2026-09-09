@@ -13,6 +13,7 @@ class Severity(str, Enum):
     MEDIUM = "MEDIUM"
     LOW = "LOW"
     INFO = "INFO"
+    WARNING = "WARNING"
 
 
 class DiffType(str, Enum):

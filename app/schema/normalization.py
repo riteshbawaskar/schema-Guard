@@ -21,7 +21,28 @@ NormalizationMode = Literal["strict", "compatible"]
 # native_type_prefix is matched case-insensitively against the start of the
 # native type name (already stripped of length/precision).
 _DEFAULT_COMPATIBLE_MAP: dict[str, list[tuple[str, str]]] = {
+    "TEMPORAL": [
+        ("axiom", "DATE"),
+        ("axiom", "DATETIME"),
+        ("axiom", "TIMESTAMP"),
+        ("snowflake", "DATE"),
+        ("snowflake", "TIMESTAMP"),
+        ("snowflake", "DATETIME"),
+        ("oracle", "DATE"),
+        ("oracle", "TIMESTAMP"),
+        ("postgresql", "DATE"),
+        ("postgresql", "TIMESTAMP"),
+        ("postgresql", "TIMESTAMPTZ"),
+        ("sqlite", "DATE"),
+        ("sqlite", "TIMESTAMP"),
+        ("sqlite", "DATETIME"),
+    ],
     "NUMERIC": [
+        ("axiom", "INTEGER"),
+        ("axiom", "BIGINT"),
+        ("axiom", "DECIMAL"),
+        ("axiom", "DOUBLE"),
+        ("axiom", "FLOAT"),
         ("snowflake", "NUMBER"),
         ("snowflake", "DECIMAL"),
         ("snowflake", "NUMERIC"),
@@ -47,6 +68,9 @@ _DEFAULT_COMPATIBLE_MAP: dict[str, list[tuple[str, str]]] = {
         ("sqlite", "DECIMAL"),
     ],
     "TEXT": [
+        ("axiom", "STRING"),
+        ("axiom", "VARCHAR"),
+        ("axiom", "CHAR"),
         ("snowflake", "VARCHAR"),
         ("snowflake", "CHAR"),
         ("snowflake", "STRING"),
@@ -64,6 +88,7 @@ _DEFAULT_COMPATIBLE_MAP: dict[str, list[tuple[str, str]]] = {
         ("sqlite", "CHAR"),
     ],
     "BOOLEAN": [
+        ("axiom", "BOOLEAN"),
         ("snowflake", "BOOLEAN"),
         ("postgresql", "BOOLEAN"),
         ("postgresql", "BOOL"),

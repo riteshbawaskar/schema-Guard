@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schema.canonical import CanonicalSchema
+from app.schema.axiom_xml import parse_axiom_xml
 from app.services import extraction_service, filter_service, schema_service
 
 router = APIRouter(prefix="/api/schema", tags=["schema"])
@@ -60,21 +61,21 @@ def extract_schema(payload: ExtractRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/upload")
-async def upload_schema_json(file: UploadFile = File(...)):
-    """Uploads a raw canonical schema JSON for ad-hoc comparison use (not
-    saved as a schema version). Returns a path usable as an
-    'uploaded_json' comparison reference."""
+async def upload_schema(file: UploadFile = File(...)):
+    """Upload canonical JSON or an Axiom DataSource XML for ad-hoc comparison."""
     import uuid
     from app.config import get_settings
     try:
         content = await file.read()
-        # Validate it parses as a canonical schema before accepting it.
-        CanonicalSchema.model_validate_json(content)
+        if (file.filename or "").lower().endswith(".xml"):
+            canonical = parse_axiom_xml(content)
+        else:
+            canonical = CanonicalSchema.model_validate_json(content)
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=f"Invalid schema JSON: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid schema upload: {e}")
     settings = get_settings()
     dest = settings.uploads_dir / f"{uuid.uuid4()}.json"
-    dest.write_bytes(content)
+    dest.write_text(canonical.to_canonical_json(), encoding="utf-8")
     return {"path": str(dest)}
 
 

@@ -1,5 +1,5 @@
 """Orchestrates a full comparison: resolve source & destination (each may be
-a live database, a saved schema version, or an uploaded JSON schema),
+    a live database, a saved schema version, or an uploaded schema file),
 apply filters INDEPENDENTLY to each side (filters never hide real
 differences - a table only in source will show as REMOVED even if it
 doesn't match the destination-side filter evaluation), run the comparison

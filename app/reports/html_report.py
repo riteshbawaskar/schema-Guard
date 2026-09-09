@@ -18,7 +18,7 @@ _env = Environment(
 
 def render_html_report(result: ComparisonResult, comparison_id: str) -> str:
     template = _env.get_template("report_template.html")
-    result_dict = result.model_dump(mode="json")
+    result_dict = result.model_dump(mode="json", exclude_none=True)
     # Content inside a <script> element is HTML "raw text": the browser does
     # NOT decode HTML entities there, so Jinja's normal autoescaping (which
     # turns '"' into '&#34;' etc.) would corrupt embedded JSON. We build safe

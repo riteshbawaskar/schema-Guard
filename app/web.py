@@ -42,6 +42,11 @@ def compare_page(request: Request):
     return templates.TemplateResponse(request, "compare.html", {"active": "compare"})
 
 
+@router.get("/compare-config", response_class=HTMLResponse)
+def compare_config_page(request: Request):
+    return templates.TemplateResponse(request, "xml_mapping.html", {"active": "compare-config"})
+
+
 @router.get("/reports", response_class=HTMLResponse)
 def reports_page(request: Request):
     return templates.TemplateResponse(request, "reports.html", {"active": "reports"})

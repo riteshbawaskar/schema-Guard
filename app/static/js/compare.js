@@ -45,7 +45,7 @@ function renderSide(prefix) {
       <select class="form-select" id="${prefix}_type" onchange="onTypeChange('${prefix}')">
         <option value="live">Live Database</option>
         <option value="schema_version">Saved Schema Version</option>
-        <option value="uploaded_json">Upload JSON</option>
+        <option value="uploaded_json">Upload Schema JSON or Axiom XML</option>
       </select>
     </div>
     <div id="${prefix}_fields"></div>
@@ -89,8 +89,8 @@ async function onTypeChange(prefix) {
   } else if (type === "uploaded_json") {
     container.innerHTML = `
       <div class="mb-2">
-        <label class="form-label">Upload canonical schema JSON</label>
-        <input class="form-control" type="file" id="${prefix}_upload_file" accept=".json" onchange="onUpload('${prefix}')">
+        <label class="form-label">Upload canonical schema JSON or Axiom XML</label>
+        <input class="form-control" type="file" id="${prefix}_upload_file" accept=".json,.xml" onchange="onUpload('${prefix}')">
         <input type="hidden" id="${prefix}_uploaded_path">
         <div class="form-text" id="${prefix}_upload_status"></div>
       </div>

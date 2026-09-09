@@ -25,6 +25,7 @@ class ColumnModel(BaseModel):
     default: Optional[str] = None
     is_identity: bool = False
     comment: Optional[str] = None
+    source_properties: dict[str, str | None] = Field(default_factory=dict)
 
 
 class PrimaryKeyModel(BaseModel):

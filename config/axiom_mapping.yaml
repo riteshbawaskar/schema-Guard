@@ -1,0 +1,105 @@
+# SchemaGuard comparison configuration.
+# This file is read each time an XML file is uploaded; edits do not require
+# an application restart.
+
+# These mappings and ignored attributes are shared by every comparison source.
+# They are not limited to XML.
+attribute_mappings:
+  - source: type
+    target: datatype
+    enabled: true
+    compare: true
+  - source: length
+    target: length
+    enabled: true
+    compare: true
+  - source: precision
+    target: precision
+    enabled: true
+    compare: true
+  - source: scale
+    target: scale
+    enabled: true
+    compare: true
+
+ignored_attributes: []
+
+missing_attribute:
+  severity: WARNING
+  fail: false
+
+xml:
+  # Axiom-specific validation and XML-to-canonical parsing rules.
+  enabled: true
+  object_type: DataSource
+  validate_object_types:
+    - DataSource:field
+  validate_scope: selected_objects # selected_objects | all_objects | complete_xml
+
+  # XML attribute -> canonical property mappings. These extend the generic
+  # mappings above for XML parsing and XML-to-XML reporting.
+  attribute_mappings:
+    - source: name
+      target: name
+      enabled: true
+      compare: true
+    - source: type
+      target: datatype
+      enabled: true
+      compare: true
+    - source: allowNulls
+      target: nullable
+      enabled: true
+      compare: true
+    - source: description
+      target: comment
+      enabled: true
+      compare: true
+    - source: default
+      target: default
+      enabled: true
+      compare: true
+    - source: displayFormat
+      target: display_format
+      enabled: true
+      compare: true
+    - source: length
+      target: length
+      enabled: false
+      compare: true
+    - source: precision
+      target: precision
+      enabled: false
+      compare: true
+    - source: scale
+      target: scale
+      enabled: false
+      compare: true
+    - source: isIdentity
+      target: identity
+      enabled: false
+      compare: true
+
+  # XML valueType-only containers are structural and are not compared.
+  ignored_properties:
+    - syntheticContent
+    - lookupSource
+    - parentFields
+    - isCountFieldFor
+
+  # XML type -> database-style native type used by comparison.
+  datatype_map:
+    STRING: VARCHAR
+    VARCHAR: VARCHAR
+    CHAR: CHAR
+    INTEGER: INTEGER
+    INT: INTEGER
+    LONG: BIGINT
+    BIGINT: BIGINT
+    DECIMAL: DECIMAL
+    DOUBLE: DOUBLE
+    FLOAT: FLOAT
+    DATE: DATE
+    DATETIME: DATETIME
+    TIMESTAMP: TIMESTAMP
+    BOOLEAN: BOOLEAN
