@@ -99,3 +99,19 @@ def test_unchanged_column_produces_no_field_diffs():
     dst = TableModel(name="T", columns=[col.model_copy(deep=True)])
     result = compare_schemas(_schema([src]), _schema([dst]))
     assert result.table_diffs[0].column_diffs[0].diff_type == "UNCHANGED"
+
+
+def test_column_size_metadata_is_not_derived_from_native_datatype():
+    varchar = _col("name", dtype="VARCHAR(34)")
+    numeric = _col("amount", dtype="NUMERIC(18,2)")
+    assert varchar.length is None
+    assert numeric.precision is None
+    assert numeric.scale is None
+
+
+def test_column_snapshot_omits_unsupplied_attributes():
+    col = _col("name", dtype="TEXT")
+    result = compare_schemas(_schema([TableModel(name="T", columns=[col])]), _schema([TableModel(name="T", columns=[col.model_copy()])]))
+    snapshot = result.table_diffs[0].column_diffs[0].source_value
+    assert "nullable" not in snapshot
+    assert "length" not in snapshot

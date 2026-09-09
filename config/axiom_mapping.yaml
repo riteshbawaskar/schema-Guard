@@ -1,26 +1,41 @@
 ignore_table_names: false
-
 table_mappings:
-  - source: source
-    destination: dest
-    enabled: true
+- source: source
+  destination: dest
+  enabled: true
 attribute_mappings:
+- source: name
+  target: name
+  enabled: true
+  compare: true
 - source: type
   target: datatype
   enabled: true
   compare: true
+- source: allowNulls
+  target: nullable
+  enabled: true
+  compare: false
+- source: description
+  target: comment
+  enabled: true
+  compare: true
+- source: default
+  target: default
+  enabled: true
+  compare: true
+- source: displayFormat
+  target: display_format
+  enabled: true
+  compare: true
 - source: length
-  target: length
+  target: size
   enabled: true
   compare: true
-- source: precision
-  target: precision
+- source: nullable
+  target: nullable
   enabled: true
-  compare: true
-- source: scale
-  target: scale
-  enabled: true
-  compare: true
+  compare: false
 ignored_attributes: []
 missing_attribute:
   severity: WARNING
@@ -28,52 +43,12 @@ missing_attribute:
 xml:
   enabled: true
   object_type: DataSource
+  identity_attributes:
+    name: name
+    datatype: type
   validate_object_types:
   - DataSource:field
   validate_scope: selected_objects
-  attribute_mappings:
-  - source: name
-    target: name
-    enabled: true
-    compare: true
-  - source: type
-    target: datatype
-    enabled: true
-    compare: true
-  - source: allowNulls
-    target: nullable
-    enabled: true
-    compare: true
-  - source: description
-    target: comment
-    enabled: true
-    compare: true
-  - source: default
-    target: default
-    enabled: true
-    compare: true
-  - source: displayFormat
-    target: display_format
-    enabled: true
-    compare: true
-  - source: length
-    target: length
-    enabled: false
-    compare: true
-  - source: precision
-    target: precision
-    enabled: false
-    compare: true
-  - source: scale
-    target: scale
-    enabled: false
-    compare: true
-  - source: isIdentity
-    target: identity
-    enabled: false
-    compare: true
-
-  ignored_attributes: []
   missing_attribute:
     severity: WARNING
     fail: false
@@ -82,28 +57,37 @@ xml:
   - lookupSource
   - parentFields
   - isCountFieldFor
-  datatype_map:
-    STRING: VARCHAR
-    VARCHAR: VARCHAR
-    CHAR: CHAR
-    INTEGER: INTEGER
-    INT: INTEGER
-    LONG: BIGINT
-    BIGINT: BIGINT
-    DECIMAL: DECIMAL
-    DOUBLE: DOUBLE
-    FLOAT: FLOAT
-    DATE: DATE
-    DATETIME: DATETIME
-    TIMESTAMP: TIMESTAMP
-    BOOLEAN: BOOLEAN
-
+  ignored_attributes: []
 value_mappings:
-  - attribute: datatype
-    source: TEXT
-    target: VARCHAR
-    enabled: true
-  - attribute: datatype
-    source: STRING
-    target: VARCHAR
-    enabled: true
+- attribute: datatype
+  source: TEXT
+  target: VARCHAR
+  enabled: true
+- attribute: datatype
+  source: STRING
+  target: VARCHAR
+  enabled: true
+- attribute: datatype
+  source: CHAR
+  target: VARCHAR
+  enabled: true
+- attribute: datatype
+  source: NUMBER
+  target: NUMERIC
+  enabled: true
+- attribute: datatype
+  source: INTEGER
+  target: NUMERIC
+  enabled: true
+- attribute: datatype
+  source: INT
+  target: NUMERIC
+  enabled: true
+- attribute: datatype
+  source: FLOAT
+  target: NUMERIC
+  enabled: true
+- attribute: datatype
+  source: DOUBLE
+  target: NUMERIC
+  enabled: true

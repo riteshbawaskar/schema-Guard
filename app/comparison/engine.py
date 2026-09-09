@@ -18,10 +18,19 @@ from app.services.xml_mapping_service import map_value
 
 
 def _index_by_name(items: list, key: str = "name") -> dict:
+    """Index model collections by their configured comparison key."""
     return {getattr(i, key): i for i in items}
 
 
+def _column_snapshot(column: ColumnModel) -> dict:
+    """Serialize only attributes explicitly supplied by a column source."""
+    values = column.model_dump()
+    available = set(column.model_fields_set) | {"name", "native_datatype", "normalized_datatype"}
+    return {key: value for key, value in values.items() if key in available}
+
+
 def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], rules: dict, xml_policy: dict) -> list[ObjectDiff]:
+    """Compare columns dynamically using supplied attributes and policy mappings."""
     src_map = _index_by_name(src_cols)
     dst_map = _index_by_name(dst_cols)
     diffs: list[ObjectDiff] = []
@@ -33,52 +42,72 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
             diffs.append(ObjectDiff(
                 object_type="column", name=name, diff_type="REMOVED",
                 severity=get_severity(rules, "column", "REMOVED"),
-                source_value=s.model_dump(),
+                source_value=_column_snapshot(s),
             ))
             continue
         if s is None and d is not None:
             diffs.append(ObjectDiff(
                 object_type="column", name=name, diff_type="ADDED",
                 severity=get_severity(rules, "column", "ADDED"),
-                destination_value=d.model_dump(),
+                destination_value=_column_snapshot(d),
             ))
             continue
 
+        assert s is not None and d is not None
+
         field_diffs: list[FieldDiff] = []
-        mapping = xml_policy.get("xml", {})
+        xml_config = xml_policy.get("xml", {})
+        configured_attributes = xml_policy.get("attribute_mappings") or xml_config.get("attribute_mappings", [])
+        attribute_mappings = [item for item in configured_attributes if item.get("enabled", True)]
+        target_mapping = {item["target"]: item for item in attribute_mappings}
         ignored_attributes = set(xml_policy.get("ignored_attributes", []))
-        checks = [
-            ("datatype", s.normalized_datatype, d.normalized_datatype),
-            ("length", s.length, d.length),
-            ("precision", s.precision, d.precision),
-            ("scale", s.scale, d.scale),
-            ("nullable", s.nullable, d.nullable),
-            ("default", s.default, d.default),
-            ("identity", s.is_identity, d.is_identity),
-            ("position", s.ordinal_position, d.ordinal_position),
-        ]
-        for category, sv, dv in checks:
+        ignored_attributes.update(item["target"] for item in attribute_mappings if item.get("compare") is False)
+        mapped_xml_targets = {
+            item["target"] for item in attribute_mappings
+            if item["source"] in s.source_properties or item["source"] in d.source_properties
+        }
+        source_values = _column_snapshot(s)
+        destination_values = _column_snapshot(d)
+        comparable_keys = (set(source_values) | set(destination_values)) - {"name", "source_properties"}
+        for category in sorted(comparable_keys):
+            severity_category = {
+                "normalized_datatype": "datatype",
+                "ordinal_position": "position",
+                "is_identity": "identity",
+            }.get(category) or category
+            source_has = category in source_values
+            destination_has = category in destination_values
             if category in ignored_attributes:
                 continue
-            sv = map_value(xml_policy, category, sv)
-            dv = map_value(xml_policy, category, dv)
-            if sv != dv:
+            if category in mapped_xml_targets:
+                continue
+            sv = map_value(xml_policy, category, source_values.get(category))
+            dv = map_value(xml_policy, category, destination_values.get(category))
+            if sv != dv or source_has != destination_has:
                 field_diffs.append(FieldDiff(
-                    category=category, field=category, source_value=sv, destination_value=dv,
-                    severity=get_severity(rules, category, "MODIFIED"),
+                    category=severity_category, field=category, source_value=sv, destination_value=dv,
+                    severity=get_severity(rules, severity_category, "MODIFIED"),
                 ))
 
         # Axiom exports carry additional field metadata that is not part of
         # the database-neutral column contract. Compare it when both sides
         # provide XML properties, while leaving database comparisons unchanged.
         if s.source_properties and d.source_properties:
-            missing_severity = (xml_policy.get("missing_attribute") or {}).get("severity", "WARNING")
-            for property_name in sorted(set(s.source_properties) | set(d.source_properties)):
-                sv = s.source_properties.get(property_name)
-                dv = d.source_properties.get(property_name)
-                if sv != dv:
-                    severity_category = "datatype" if property_name == "type" else "comment"
-                    severity = missing_severity if property_name not in s.source_properties or property_name not in d.source_properties else get_severity(rules, severity_category, "MODIFIED")
+            missing_policy = xml_policy.get("missing_attribute") or xml_config.get("missing_attribute") or {}
+            missing_severity = missing_policy.get("severity", "WARNING")
+            comparable_properties = {
+                item["source"]: item for item in attribute_mappings
+                if item.get("compare", True)
+            }
+            for property_name, attribute_mapping in sorted(comparable_properties.items()):
+                target = attribute_mapping["target"]
+                source_has = property_name in s.source_properties
+                destination_has = property_name in d.source_properties
+                sv = map_value(xml_policy, target, s.source_properties.get(property_name))
+                dv = map_value(xml_policy, target, d.source_properties.get(property_name))
+                if sv != dv or source_has != destination_has:
+                    severity_category = "datatype" if target == "datatype" else "comment"
+                    severity = missing_severity if not source_has or not destination_has else get_severity(rules, severity_category, "MODIFIED")
                     field_diffs.append(FieldDiff(
                         category=f"xml:{property_name}", field=property_name,
                         source_value=sv, destination_value=dv,
@@ -90,15 +119,16 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
         diffs.append(ObjectDiff(
             object_type="column", name=name, diff_type=diff_type, severity=severity,
             field_diffs=field_diffs,
-            source_value=s.model_dump(), destination_value=d.model_dump(),
+            source_value=_column_snapshot(s), destination_value=_column_snapshot(d),
         ))
     return diffs
 
 
-_SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0, "WARNING": -1}
+_SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "WARNING": 0.5, "INFO": 0}
 
 
 def _severity_rank(sev: str) -> int:
+    """Return the configured ordering used to summarize object severity."""
     return _SEVERITY_ORDER.get(sev, 0)
 
 
@@ -123,6 +153,7 @@ def _compare_named_collection(object_type: str, src_items: list, dst_items: list
                 destination_value=d.model_dump(),
             ))
         else:
+            assert s is not None and d is not None
             if s.model_dump() != d.model_dump():
                 diffs.append(ObjectDiff(
                     object_type=object_type, name=name, diff_type="MODIFIED",
@@ -148,6 +179,7 @@ def _compare_primary_key(src_table: TableModel, dst_table: TableModel, rules: di
     if s is None and d is not None:
         return ObjectDiff(object_type="primary_key", name=d.name or "PK", diff_type="ADDED",
                            severity=get_severity(rules, "primary_key", "ADDED"), destination_value=d.model_dump())
+    assert s is not None and d is not None
     if s.columns != d.columns:
         return ObjectDiff(object_type="primary_key", name=d.name or s.name or "PK", diff_type="MODIFIED",
                            severity=get_severity(rules, "primary_key", "MODIFIED"),
@@ -206,6 +238,7 @@ def compare_schemas(
     severity_config_path: str | None = None,
     fail_on: list[str] | None = None,
 ) -> ComparisonResult:
+    """Compare two canonical schemas using the current table and attribute policy."""
     rules = load_severity_rules(severity_config_path)
     xml_policy = load_mapping()
     fail_on = fail_on if fail_on is not None else load_fail_on(severity_config_path)

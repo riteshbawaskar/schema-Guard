@@ -1,4 +1,5 @@
 from app.connectors.sqlite_connector import SQLiteConnector
+import json
 
 
 def test_sqlite_extraction_returns_expected_table_names(test_databases):
@@ -47,6 +48,19 @@ def test_sqlite_extraction_captures_indexes(test_databases):
     customer = next(t for t in schema.tables if t.name == "CUSTOMER")
     index_names = {i.name for i in customer.indexes}
     assert "idx_customer_status" in index_names
+
+
+def test_sqlite_extraction_json_contains_only_supplied_attributes(test_databases):
+    connector = SQLiteConnector({"database_file": test_databases["source"]})
+    with connector:
+        schema = connector.extract_schema(None, None, table_names=["ACCOUNT"])
+    account_id = next(column for column in schema.tables[0].columns if column.name == "account_id")
+    serialized = json.loads(schema.to_canonical_json())
+    serialized_column = next(column for column in serialized["tables"][0]["columns"] if column["name"] == "account_id")
+    assert "length" not in serialized_column
+    assert "precision" not in serialized_column
+    assert "scale" not in serialized_column
+    assert serialized_column["native_datatype"] == account_id.native_datatype
 
 
 def test_connection_test_reports_success_for_valid_sqlite_file(test_databases):

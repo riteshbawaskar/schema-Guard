@@ -31,7 +31,8 @@ def test_axiom_xml_extracts_datasource_fields(tmp_path):
     assert "parentFields" not in schema.tables[0].columns[0].source_properties
     assert "description" in schema.tables[0].columns[0].source_properties
     assert schema.tables[0].columns[1].normalized_datatype == "TEXT"
-    assert schema.tables[0].columns[0].nullable is False
+    assert schema.tables[0].columns[0].nullable is True
+    assert "allowNulls" not in schema.tables[0].columns[0].source_properties
 
     path = tmp_path / "schema.xml"
     path.write_bytes(xml)

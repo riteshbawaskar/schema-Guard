@@ -37,8 +37,6 @@ function renderMapping(config) {
   document.getElementById("missingFail").checked = Boolean((xml.missing_attribute || {}).fail);
   document.getElementById("mappingRows").innerHTML = "";
   (config.attribute_mappings || []).forEach(item => mappingRow(item, "mappingRows"));
-  document.getElementById("xmlMappingRows").innerHTML = "";
-  (xml.attribute_mappings || []).forEach(item => mappingRow(item, "xmlMappingRows"));
   document.getElementById("valueMappingRows").innerHTML = "";
   (config.value_mappings || []).forEach(valueMappingRow);
 }
@@ -75,7 +73,6 @@ function collectMapping() {
     source: row.querySelector(".map-source").value.trim(), target: row.querySelector(".map-target").value.trim(),
     enabled: row.querySelector(".map-enabled").checked, compare: row.querySelector(".map-compare").checked,
   })).filter(item => item.source && item.target);
-  xml.attribute_mappings = readMappings("#xmlMappingRows");
   return { ...mappingConfig, ignore_table_names: document.getElementById("ignoreTableNames").checked, table_mappings: tableMappings, value_mappings: valueMappings, attribute_mappings: readMappings("#mappingRows"), xml };
 }
 
@@ -87,7 +84,6 @@ async function loadMapping() {
 document.getElementById("addMapping").onclick = event => { event.preventDefault(); mappingRow(); };
 document.getElementById("addTableMapping").onclick = event => { event.preventDefault(); tableMappingRow(); };
 document.getElementById("addValueMapping").onclick = event => { event.preventDefault(); valueMappingRow(); };
-document.getElementById("addXmlMapping").onclick = event => { event.preventDefault(); mappingRow({}, "xmlMappingRows"); };
 document.getElementById("saveMapping").onclick = async () => {
   try {
     renderMapping(await apiRequest("/api/compare-config", { method: "PUT", body: collectMapping() }));

@@ -47,7 +47,7 @@ def extract_schema(payload: ExtractRequest, db: Session = Depends(get_db)):
             db, payload.database_configuration_id, payload.database, payload.schema_name,
             payload.filter_id, filter_name,
         )
-        response: dict = {"schema": canonical.model_dump(mode="json", by_alias=True)}
+        response: dict = {"schema": canonical.model_dump(mode="json", by_alias=True, exclude_unset=True)}
         if payload.save:
             version = schema_service.save_new_schema_version(
                 db, payload.version_name, canonical, payload.description,

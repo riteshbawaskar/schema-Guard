@@ -103,13 +103,15 @@ class CanonicalSchema(BaseModel):
         )
 
     def table_count(self) -> int:
+        """Return the number of tables represented in this schema."""
         return len(self.tables)
 
     def column_count(self) -> int:
+        """Return the total number of columns across all represented tables."""
         return sum(len(t.columns) for t in self.tables)
 
     def to_canonical_json(self) -> str:
         """Deterministic JSON string (sorted keys, sorted collections)."""
         import json
-        data = self.sorted().model_dump(mode="json", by_alias=True)
+        data = self.sorted().model_dump(mode="json", by_alias=True, exclude_unset=True)
         return json.dumps(data, sort_keys=True, indent=2)

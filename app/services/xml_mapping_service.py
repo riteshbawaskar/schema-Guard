@@ -19,16 +19,14 @@ DEFAULT_MAPPING = {
         "object_type": "DataSource",
         "validate_object_types": ["DataSource:field"],
         "validate_scope": "selected_objects",
-        "attribute_mappings": [],
-        "ignored_attributes": [],
         "missing_attribute": {"severity": "WARNING", "fail": False},
         "ignored_properties": [],
-        "datatype_map": {},
     }
 }
 
 
 def load_mapping(path: str | Path | None = None) -> dict[str, Any]:
+    """Load and normalize the editable comparison configuration."""
     mapping_path = Path(path) if path else MAPPING_PATH
     if not mapping_path.exists():
         return _merge_defaults({})
@@ -38,6 +36,7 @@ def load_mapping(path: str | Path | None = None) -> dict[str, Any]:
 
 
 def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
+    """Normalize current and legacy configuration shapes into one policy."""
     legacy_tables = value.get("table_matching") or {}
     table_mappings = value.get("table_mappings")
     if table_mappings is None:
@@ -57,11 +56,29 @@ def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
     }
     xml = dict(DEFAULT_MAPPING["xml"])
     xml.update(value.get("xml", {}))
+    if "identity_attributes" not in xml:
+        xml["identity_attributes"] = {"name": "name", "datatype": "type"}
+    if xml.get("field_properties") and not generic["attribute_mappings"]:
+        xml["identity_attributes"] = {
+            "name": xml["field_properties"].get("name", xml["identity_attributes"]["name"]),
+            "datatype": xml["field_properties"].get("datatype", xml["identity_attributes"]["datatype"]),
+        }
+        generic["attribute_mappings"] = [
+            {"source": source, "target": target, "enabled": True, "compare": True}
+            for target, source in xml["field_properties"].items()
+        ]
     xml["missing_attribute"] = {
         **DEFAULT_MAPPING["xml"]["missing_attribute"],
         **(xml.get("missing_attribute") or {}),
     }
     result = {**value, **generic, "xml": xml}
+    if not generic["attribute_mappings"] and xml.get("attribute_mappings"):
+        result["attribute_mappings"] = list(xml["attribute_mappings"])
+    if not generic["value_mappings"] and xml.get("datatype_map"):
+        result["value_mappings"] = [
+            {"attribute": "datatype", "source": source, "target": target, "enabled": True}
+            for source, target in xml["datatype_map"].items()
+        ]
     if "table_matching" in value:
         result["table_matching"] = {
             "enabled": legacy_tables.get("enabled", True),
@@ -72,6 +89,7 @@ def _merge_defaults(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_mapping(value: dict[str, Any]) -> dict[str, Any]:
+    """Validate user-editable table, attribute, value, and XML settings."""
     value = _merge_defaults(value)
     if not isinstance(value.get("attribute_mappings"), list):
         raise ValueError("attribute_mappings must be a list")
@@ -90,7 +108,7 @@ def validate_mapping(value: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(item, dict) or not item.get("attribute") or "source" not in item or "target" not in item:
             raise ValueError("Each value mapping requires attribute, source, and target")
     xml = value["xml"]
-    for item in value["attribute_mappings"] + xml.get("attribute_mappings", []):
+    for item in value["attribute_mappings"]:
         if not isinstance(item, dict) or not item.get("source") or not item.get("target"):
             raise ValueError("Each attribute mapping requires source and target")
         if not isinstance(item.get("enabled", True), bool) or not isinstance(item.get("compare", True), bool):
@@ -101,6 +119,7 @@ def validate_mapping(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def save_mapping(value: dict[str, Any], path: str | Path | None = None) -> dict[str, Any]:
+    """Validate and persist the comparison policy as YAML."""
     validated = validate_mapping(value)
     mapping_path = Path(path) if path else MAPPING_PATH
     mapping_path.parent.mkdir(parents=True, exist_ok=True)

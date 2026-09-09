@@ -32,6 +32,8 @@
   .sev-LOW { background:#E3F2FD; color:var(--primary); }
   .sev-INFO { background:#ECEFF1; color:#607D8B; }
   .sev-WARNING { background:#FFF8E1; color:#8D6E00; }
+  .sev-MATCH { background:#E8F5E9; color:var(--success); }
+  .sev-MISMATCH { background:#FFEBEE; color:var(--error); }
   .toolbar { background:var(--white); border:1px solid #E0E6ED; border-radius:8px; padding:12px; margin-bottom:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; position:sticky; top:66px; z-index:9; }
   .toolbar input[type=text] { padding:7px 10px; border:1px solid #CFD8DC; border-radius:6px; width:240px; }
   .toolbar label { font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none; }
@@ -221,27 +223,28 @@ function getFiltered() {
 function badge(type) { return `<span class="badge badge-${type}">${type}</span>`; }
 function sevBadge(sev) { return `<span class="badge sev-${sev}">${sev}</span>`; }
 
-const COLUMN_FIELDS = {datatype:'native_datatype',length:'length',precision:'precision',scale:'scale',nullable:'nullable',default:'default',identity:'is_identity',position:'ordinal_position'};
+const EXCLUDED_ATTRIBUTES = new Set({{ excluded_attributes_json | safe }});
 const XML_XML_MODE = {{ 'true' if result.source_format == 'xml' and result.destination_format == 'xml' else 'false' }};
-function fieldValue(value) { return value === null || value === undefined ? 'Missing' : String(value); }
+function fieldValue(value, missingLabel = 'null') { return value === undefined ? 'Missing' : (value === null ? missingLabel : String(value)); }
 function renderColumnDetails(d) {
   const source = d.source_value || {};
   const destination = d.destination_value || {};
-  const mismatches = new Set((d.field_diffs || []).map(fd => fd.category));
-  const fields = XML_XML_MODE ? [] : Object.keys(COLUMN_FIELDS).filter(category => !diffOnly || mismatches.has(category));
+  const mismatches = new Set((d.field_diffs || []).flatMap(fd => [fd.category, fd.field]));
+  const fields = XML_XML_MODE ? [] : [...new Set([...Object.keys(source), ...Object.keys(destination)])]
+    .filter(attribute => !['name', 'source_properties'].includes(attribute) && !EXCLUDED_ATTRIBUTES.has(attribute) && (!diffOnly || mismatches.has(attribute)));
   const xmlSource = source.source_properties || {};
   const xmlDestination = destination.source_properties || {};
   const xmlFields = XML_XML_MODE ? [...new Set([...Object.keys(xmlSource), ...Object.keys(xmlDestination)])]
     .sort().filter(name => !diffOnly || xmlSource[name] !== xmlDestination[name]) : [];
-  const standardRows = fields.map(category => {
-    const matches = source[COLUMN_FIELDS[category]] === destination[COLUMN_FIELDS[category]];
-    const severity = (d.field_diffs || []).find(fd => fd.category === category)?.severity || 'INFO';
-    return `<tr><td>${category}</td><td><code>${fieldValue(source[COLUMN_FIELDS[category]])}</code></td><td><code>${fieldValue(destination[COLUMN_FIELDS[category]])}</code></td><td>${matches ? '<span class="badge sev-INFO">MATCH</span>' : '<span class="badge sev-' + severity + '">MISMATCH</span>'}</td></tr>`;
+  const standardRows = fields.map(attribute => {
+    const matches = source[attribute] === destination[attribute];
+    const severity = (d.field_diffs || []).find(fd => fd.category === attribute || fd.field === attribute)?.severity || 'INFO';
+    return `<tr><td>${attribute}</td><td><code>${fieldValue(source[attribute])}</code></td><td><code>${fieldValue(destination[attribute])}</code></td><td>${matches ? '<span class="badge sev-MATCH">MATCH</span>' : '<span class="badge sev-' + (severity === 'WARNING' ? 'WARNING' : 'MISMATCH') + '">' + (severity === 'WARNING' ? 'WARNING' : 'MISMATCH') + '</span>'}</td></tr>`;
   }).join('');
   const xmlRows = xmlFields.map(name => {
     const matches = xmlSource[name] === xmlDestination[name];
     const severity = (d.field_diffs || []).find(fd => fd.field === name)?.severity || 'INFO';
-    return `<tr><td>XML: ${name}</td><td><code>${fieldValue(xmlSource[name])}</code></td><td><code>${fieldValue(xmlDestination[name])}</code></td><td>${matches ? '<span class="badge sev-INFO">MATCH</span>' : '<span class="badge sev-' + severity + '">MISMATCH</span>'}</td></tr>`;
+    return `<tr><td>${name}</td><td><code>${fieldValue(xmlSource[name], 'Missing')}</code></td><td><code>${fieldValue(xmlDestination[name], 'Missing')}</code></td><td>${matches ? '<span class="badge sev-MATCH">MATCH</span>' : '<span class="badge sev-' + (severity === 'WARNING' ? 'WARNING' : 'MISMATCH') + '">' + (severity === 'WARNING' ? 'WARNING' : 'MISMATCH') + '</span>'}</td></tr>`;
   }).join('');
   if (!standardRows && !xmlRows) return '';
   return `<table class="data field-data"><thead><tr><th>Attribute</th><th>Source</th><th>Destination</th><th>Result</th></tr></thead><tbody>${standardRows}${xmlRows}</tbody></table>`;

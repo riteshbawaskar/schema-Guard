@@ -48,3 +48,11 @@ def test_round_trip_via_model_validate_json():
     restored = CanonicalSchema.model_validate_json(raw)
     assert restored.table_count() == schema.table_count()
     assert restored.metadata.database_type == "sqlite"
+
+
+def test_canonical_json_omits_unsupplied_column_attributes():
+    data = json.loads(_sample_schema().to_canonical_json())
+    column = data["tables"][0]["columns"][0]
+    assert "length" not in column
+    assert "precision" not in column
+    assert "scale" not in column

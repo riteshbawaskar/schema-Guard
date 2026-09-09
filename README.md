@@ -104,17 +104,16 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 Severity rules, the compatible-mode datatype mapping, and CI `fail_on`
 thresholds are configurable in `config/comparison_rules.yaml`.
 
-Axiom DataSource XML uploads use `config/axiom_mapping.yaml`. Its top-level
-`attribute_mappings` and `ignored_attributes` are generic and apply to every
-comparison. The `xml` section maps XML field properties to canonical column
-properties (`name`, `datatype`, `nullable`, `comment`, and `default`), defines
-XML object validation, and lists structural properties to ignore. Generic
-mappings can be enabled or disabled from the **Compare Configuration** page.
-`compare: false` keeps an attribute out of XML-to-XML comparisons, while
-`ignored_attributes` skips canonical database attributes such as `length` or
-`precision`. Missing mapped attributes are reported as `WARNING` and do not
-fail comparisons by default. The file is read for each XML upload and
-comparison, so mapping edits take effect without restarting the application.
+Axiom DataSource XML uploads use `config/axiom_mapping.yaml`. The single
+top-level `attribute_mappings` list applies to XML and database comparisons,
+mapping names such as `type`, `size`, or `allowNulls` to canonical attributes.
+`compare: false` excludes that mapped attribute from comparison. The
+top-level `value_mappings` list normalizes values such as `TEXT`, `STRING`,
+`CHAR`, `NUMBER`, and `FLOAT`; datatype behavior is configured there rather
+than hardcoded in the parser. These settings can be edited from the
+**Compare Configuration** page. Missing mapped attributes are reported as
+`WARNING` and do not fail comparisons by default. The file is read for each
+XML upload and comparison, so mapping edits take effect without restarting.
 
 The XML policy also controls `validate_object_types` and `validate_scope`.
 `selected_objects` currently validates the configured object types (the default

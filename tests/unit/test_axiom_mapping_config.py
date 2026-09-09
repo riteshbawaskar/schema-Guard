@@ -37,7 +37,10 @@ def test_axiom_mapping_is_loaded_per_parse(tmp_path):
     column = schema.tables[0].columns[0]
     assert column.name == "customer_name"
     assert column.native_datatype == "VARCHAR2"
-    assert column.nullable is False
-    assert column.comment == "Customer"
-    assert column.default == "N/A"
+    assert column.nullable is True
+    assert column.comment is None
+    assert column.default is None
+    assert column.source_properties["nullableFlag"] == "false"
+    assert column.source_properties["notes"] == "Customer"
+    assert column.source_properties["defaultValue"] == "N/A"
     assert "internal" not in column.source_properties
