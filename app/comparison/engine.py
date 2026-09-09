@@ -14,6 +14,7 @@ from app.comparison.models import (
 from app.comparison.severity import get_severity, load_fail_on, load_severity_rules
 from app.schema.canonical import CanonicalSchema, ColumnModel, TableModel
 from app.services.xml_mapping_service import load_mapping
+from app.services.xml_mapping_service import map_value
 
 
 def _index_by_name(items: list, key: str = "name") -> dict:
@@ -59,6 +60,8 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
         for category, sv, dv in checks:
             if category in ignored_attributes:
                 continue
+            sv = map_value(xml_policy, category, sv)
+            dv = map_value(xml_policy, category, dv)
             if sv != dv:
                 field_diffs.append(FieldDiff(
                     category=category, field=category, source_value=sv, destination_value=dv,
@@ -214,15 +217,18 @@ def compare_schemas(
     dst_map = {t.name: t for t in dst_sorted.tables}
 
     table_diffs: list[TableDiff] = []
-    table_policy = xml_policy.get("table_matching", {})
-    use_matching = table_policy.get("enabled", True)
-    ignore_names = use_matching and table_policy.get("ignore_names", False)
+    legacy_table_policy = xml_policy.get("table_matching") or {}
+    use_matching = legacy_table_policy.get("enabled", True)
+    table_mappings = xml_policy.get("table_mappings")
+    if table_mappings is None:
+        table_mappings = legacy_table_policy.get("mappings") or legacy_table_policy.get("mapping") or []
+    ignore_names = xml_policy.get("ignore_table_names", legacy_table_policy.get("ignore_names", False))
     pairs: list[tuple[str, TableModel | None, TableModel | None]] = []
     used_source: set[str] = set()
     used_destination: set[str] = set()
 
     if use_matching:
-        for item in table_policy.get("mappings") or []:
+        for item in table_mappings:
             if item.get("enabled", True) is False:
                 continue
             source_name = item.get("source")

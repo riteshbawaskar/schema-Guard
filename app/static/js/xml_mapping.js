@@ -25,10 +25,9 @@ function renderMapping(config) {
   const xml = config.xml || {};
   mappingConfig = config;
   const tables = config.table_matching || {};
-  document.getElementById("tableMatchingEnabled").checked = tables.enabled !== false;
-  document.getElementById("ignoreTableNames").checked = tables.ignore_names === true;
+  document.getElementById("ignoreTableNames").checked = config.ignore_table_names === true || tables.ignore_names === true;
   document.getElementById("tableMappingRows").innerHTML = "";
-  (tables.mappings || []).forEach(tableMappingRow);
+  (config.table_mappings || tables.mappings || []).forEach(tableMappingRow);
   document.getElementById("enabled").checked = xml.enabled !== false;
   document.getElementById("objectType").value = xml.object_type || "DataSource";
   document.getElementById("scope").value = xml.validate_scope || "selected_objects";
@@ -40,17 +39,31 @@ function renderMapping(config) {
   (config.attribute_mappings || []).forEach(item => mappingRow(item, "mappingRows"));
   document.getElementById("xmlMappingRows").innerHTML = "";
   (xml.attribute_mappings || []).forEach(item => mappingRow(item, "xmlMappingRows"));
+  document.getElementById("valueMappingRows").innerHTML = "";
+  (config.value_mappings || []).forEach(valueMappingRow);
+}
+
+function valueMappingRow(item = {}) {
+  const row = document.createElement("tr");
+  row.innerHTML = `<td><input class="form-check-input value-map-enabled" type="checkbox" ${item.enabled !== false ? "checked" : ""}></td>
+    <td><input class="form-control value-map-attribute" value="${item.attribute || ""}"></td>
+    <td><input class="form-control value-map-source" value="${item.source || ""}"></td>
+    <td><input class="form-control value-map-target" value="${item.target || ""}"></td>
+    <td><button type="button" class="btn btn-outline-danger btn-sm remove-value-map" title="Remove value mapping"><i class="bi bi-trash"></i></button></td>`;
+  row.querySelector(".remove-value-map").onclick = () => row.remove();
+  document.getElementById("valueMappingRows").appendChild(row);
 }
 
 function collectMapping() {
-  const tableMatching = { ...(mappingConfig.table_matching || {}) };
-  tableMatching.enabled = document.getElementById("tableMatchingEnabled").checked;
-  tableMatching.ignore_names = document.getElementById("ignoreTableNames").checked;
-  tableMatching.mappings = [...document.querySelectorAll("#tableMappingRows tr")].map(row => ({
+  const tableMappings = [...document.querySelectorAll("#tableMappingRows tr")].map(row => ({
     source: row.querySelector(".table-map-source").value.trim(),
     destination: row.querySelector(".table-map-destination").value.trim(),
     enabled: row.querySelector(".table-map-enabled").checked,
   })).filter(item => item.source && item.destination);
+  const valueMappings = [...document.querySelectorAll("#valueMappingRows tr")].map(row => ({
+    attribute: row.querySelector(".value-map-attribute").value.trim(), source: row.querySelector(".value-map-source").value,
+    target: row.querySelector(".value-map-target").value, enabled: row.querySelector(".value-map-enabled").checked,
+  })).filter(item => item.attribute && item.source !== "" && item.target !== "");
   const xml = { ...(mappingConfig.xml || {}) };
   xml.enabled = document.getElementById("enabled").checked;
   xml.object_type = document.getElementById("objectType").value.trim();
@@ -63,7 +76,7 @@ function collectMapping() {
     enabled: row.querySelector(".map-enabled").checked, compare: row.querySelector(".map-compare").checked,
   })).filter(item => item.source && item.target);
   xml.attribute_mappings = readMappings("#xmlMappingRows");
-  return { ...mappingConfig, table_matching: tableMatching, attribute_mappings: readMappings("#mappingRows"), xml };
+  return { ...mappingConfig, ignore_table_names: document.getElementById("ignoreTableNames").checked, table_mappings: tableMappings, value_mappings: valueMappings, attribute_mappings: readMappings("#mappingRows"), xml };
 }
 
 async function loadMapping() {
@@ -73,6 +86,7 @@ async function loadMapping() {
 
 document.getElementById("addMapping").onclick = event => { event.preventDefault(); mappingRow(); };
 document.getElementById("addTableMapping").onclick = event => { event.preventDefault(); tableMappingRow(); };
+document.getElementById("addValueMapping").onclick = event => { event.preventDefault(); valueMappingRow(); };
 document.getElementById("addXmlMapping").onclick = event => { event.preventDefault(); mappingRow({}, "xmlMappingRows"); };
 document.getElementById("saveMapping").onclick = async () => {
   try {

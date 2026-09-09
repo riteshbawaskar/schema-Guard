@@ -1,7 +1,6 @@
-table_matching:
-  enabled: true
-  ignore_names: false
-  mappings:
+ignore_table_names: false
+
+table_mappings:
   - source: source
     destination: dest
     enabled: true
@@ -73,6 +72,7 @@ xml:
     target: identity
     enabled: false
     compare: true
+
   ignored_attributes: []
   missing_attribute:
     severity: WARNING
@@ -97,3 +97,13 @@ xml:
     DATETIME: DATETIME
     TIMESTAMP: TIMESTAMP
     BOOLEAN: BOOLEAN
+
+value_mappings:
+  - attribute: datatype
+    source: TEXT
+    target: VARCHAR
+    enabled: true
+  - attribute: datatype
+    source: STRING
+    target: VARCHAR
+    enabled: true

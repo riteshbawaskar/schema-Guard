@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.schema.canonical import CanonicalSchema, ColumnModel, SchemaMetadata, TableModel
 from app.schema.normalization import normalize_datatype
-from app.services.xml_mapping_service import load_mapping
+from app.services.xml_mapping_service import load_mapping, map_value
 
 def load_axiom_mapping(path: str | Path | None = None) -> dict:
     return load_mapping(path).get("xml", {})
@@ -55,7 +55,8 @@ def _as_bool(value, default: bool = False) -> bool:
 
 
 def parse_axiom_xml(content: bytes, mapping_path: str | Path | None = None) -> CanonicalSchema:
-    mapping = load_axiom_mapping(mapping_path)
+    full_mapping = load_mapping(mapping_path)
+    mapping = full_mapping.get("xml", {})
     if not mapping.get("enabled", True):
         raise ValueError("XML schema validation is disabled in the XML mapping configuration")
     root = _safe_xml_root(content)
@@ -84,7 +85,7 @@ def parse_axiom_xml(content: bytes, mapping_path: str | Path | None = None) -> C
     if not configured and mapping.get("field_properties"):
         configured = [{"source": source, "target": target, "enabled": True, "compare": True}
                       for target, source in mapping["field_properties"].items()]
-    generic = load_mapping(mapping_path).get("attribute_mappings", [])
+    generic = full_mapping.get("attribute_mappings", [])
     mappings = [item for item in generic + configured if item.get("enabled", True)]
     target_to_source = {item["target"]: item["source"] for item in mappings}
     comparable_sources = {item["source"] for item in mappings if item.get("compare", True)}
@@ -106,6 +107,7 @@ def parse_axiom_xml(content: bytes, mapping_path: str | Path | None = None) -> C
         if not name or not axiom_type:
             raise ValueError("Every DataSource:field must contain name and type properties")
         native_type = datatype_map.get(axiom_type, axiom_type)
+        native_type = map_value(full_mapping, "datatype", native_type)
         length = _as_int(_mapped_value(props, target_to_source.get("length")))
         precision = _as_int(_mapped_value(props, target_to_source.get("precision")))
         scale = _as_int(_mapped_value(props, target_to_source.get("scale")))
