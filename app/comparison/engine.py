@@ -29,6 +29,23 @@ def _column_snapshot(column: ColumnModel) -> dict:
     return {key: value for key, value in values.items() if key in available}
 
 
+def _resolve_attribute(column: ColumnModel, source_name: str, target_name: str) -> tuple:
+    """Resolve a mapped attribute's raw value for one comparison side.
+
+    Prefers the raw XML property (keyed by the mapping's source name), then
+    falls back to a database-extracted canonical field matching the
+    mapping's target or source name, so a JSON schema attribute (e.g.
+    ``length``) can be compared against a differently named XML attribute
+    (e.g. ``size``) using the same mapping entry.
+    """
+    if source_name in column.source_properties:
+        return column.source_properties.get(source_name), True
+    for field_name in (target_name, source_name):
+        if field_name in column.model_fields_set:
+            return getattr(column, field_name), True
+    return None, False
+
+
 def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], rules: dict, xml_policy: dict) -> list[ObjectDiff]:
     """Compare columns dynamically using supplied attributes and policy mappings."""
     src_map = _index_by_name(src_cols)
@@ -59,25 +76,23 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
         xml_config = xml_policy.get("xml", {})
         configured_attributes = xml_policy.get("attribute_mappings") or xml_config.get("attribute_mappings", [])
         attribute_mappings = [item for item in configured_attributes if item.get("enabled", True)]
-        target_mapping = {item["target"]: item for item in attribute_mappings}
         ignored_attributes = set(xml_policy.get("ignored_attributes", []))
         ignored_attributes.update(item["target"] for item in attribute_mappings if item.get("compare") is False)
-        mapped_xml_targets = {
-            item["target"] for item in attribute_mappings
-            if item["source"] in s.source_properties or item["source"] in d.source_properties
-        }
+        # Attributes covered by a configured mapping are compared once, below,
+        # via source/target resolution - regardless of source format - so
+        # exclude both names here to avoid comparing them twice.
+        mapped_attribute_names = {item["target"] for item in attribute_mappings} | {item["source"] for item in attribute_mappings}
+
         source_values = _column_snapshot(s)
         destination_values = _column_snapshot(d)
         comparable_keys = set(source_values) | set(destination_values)
         comparable_keys -= set(xml_policy.get("non_comparable_attributes", []))
         for category in sorted(comparable_keys):
+            if category in ignored_attributes or category in mapped_attribute_names:
+                continue
             severity_category = xml_policy.get("comparison_categories", {}).get(category, category)
             source_has = category in source_values
             destination_has = category in destination_values
-            if category in ignored_attributes:
-                continue
-            if category in mapped_xml_targets:
-                continue
             sv = map_value(xml_policy, category, source_values.get(category))
             dv = map_value(xml_policy, category, destination_values.get(category))
             if sv != dv or source_has != destination_has:
@@ -86,24 +101,30 @@ def _compare_columns(src_cols: list[ColumnModel], dst_cols: list[ColumnModel], r
                     severity=get_severity(rules, severity_category, "MODIFIED"),
                 ))
 
-        # Axiom exports carry additional field metadata that is not part of
-        # the database-neutral column contract. Compare it when both sides
-        # provide XML properties, while leaving database comparisons unchanged.
-        if s.source_properties and d.source_properties:
+        # Compare configured attribute mappings the same way for every source
+        # combination (database-to-database, database-to-XML, XML-to-XML):
+        # prefer each side's raw XML property, falling back to the matching
+        # canonical column field (by target or source name), so e.g. a JSON
+        # `length` attribute can be mapped against an XML `size` attribute.
+        if attribute_mappings:
             missing_policy = xml_policy.get("missing_attribute") or xml_config.get("missing_attribute") or {}
             missing_severity = missing_policy.get("severity", "WARNING")
-            comparable_properties = {
-                item["source"]: item for item in attribute_mappings
+            comparable_mappings = {
+                item["target"]: item for item in attribute_mappings
                 if item.get("compare", True)
             }
-            for property_name, attribute_mapping in sorted(comparable_properties.items()):
-                target = attribute_mapping["target"]
-                source_has = property_name in s.source_properties
-                destination_has = property_name in d.source_properties
-                sv = map_value(xml_policy, target, s.source_properties.get(property_name))
-                dv = map_value(xml_policy, target, d.source_properties.get(property_name))
+            for target, attribute_mapping in sorted(comparable_mappings.items()):
+                property_name = attribute_mapping["source"]
+                s_val, source_has = _resolve_attribute(s, property_name, target)
+                d_val, destination_has = _resolve_attribute(d, property_name, target)
+                if not source_has and not destination_has:
+                    continue
+                sv = map_value(xml_policy, target, s_val)
+                dv = map_value(xml_policy, target, d_val)
                 if sv != dv or source_has != destination_has:
-                    severity_category = "datatype" if target == "datatype" else "comment"
+                    severity_category = xml_policy.get("comparison_categories", {}).get(target, target)
+                    if severity_category not in rules and property_name in rules:
+                        severity_category = property_name
                     severity = missing_severity if not source_has or not destination_has else get_severity(rules, severity_category, "MODIFIED")
                     field_diffs.append(FieldDiff(
                         category=f"xml:{property_name}", field=property_name,
